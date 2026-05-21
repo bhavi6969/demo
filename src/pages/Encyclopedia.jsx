@@ -1,123 +1,203 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 
-const encyclopedia = [
-  {
-    disease: "Actinic Keratosis",
-    description: "Actinic Keratosis (AK) is a rough, scaly patch on the skin caused by years of sun exposure. It is considered a precancerous condition and can potentially develop into squamous cell carcinoma if untreated.",
-    symptoms: [
-      "Rough, dry, scaly patches on sun-exposed skin",
-      "Pink, red, or brownish spots",
-      "Itching or burning sensation",
-      "Tenderness when touched",
-      "Occasional bleeding or crusting"
-    ],
-    treatment: [
-      "Topical 5-fluorouracil cream",
-      "Imiquimod cream for immune response",
-      "Cryotherapy (liquid nitrogen treatment)",
-      "Photodynamic therapy",
-      "Laser therapy for persistent lesions"
-    ]
-  },
-  {
-    disease: "Acne Vulgaris",
-    description: "Acne is a common skin condition that occurs when hair follicles become clogged with oil and dead skin cells, leading to pimples, blackheads, and whiteheads.",
-    symptoms: [
-      "Whiteheads",
-      "Blackheads",
-      "Red pimples",
-      "Oily skin",
-      "Dark spots"
-    ],
-    treatment: [
-      "Use salicylic acid cleanser twice daily",
-      "Apply benzoyl peroxide gel",
-      "Use oil-free moisturizer",
-      "Avoid touching pimples"
-    ]
-  },
-  {
-    disease: "Psoriasis",
-    description: "Psoriasis is a chronic autoimmune skin disorder that causes rapid skin cell buildup, leading to red, scaly, itchy patches. It can affect joints in some cases (psoriatic arthritis).",
-    symptoms: [
-      "Red, raised patches of skin",
-      "Thick silvery scales",
-      "Itching or burning sensation",
-      "Dry or cracked skin that may bleed",
-      "Nail changes (pitting or discoloration)",
-      "Joint pain if psoriatic arthritis develops"
-    ],
-    treatment: [
-      "Topical corticosteroid creams",
-      "Vitamin D analogues (calcipotriol)",
-      "Moisturizers to reduce dryness",
-      "Phototherapy (UVB light treatment)",
-      "Systemic or biologic medications for severe cases"
-    ]
-  },
-  {
-    disease: "Skin Cancer",
-    description: "Skin cancer is the abnormal growth of skin cells, most often caused by UV exposure from the sun or tanning beds. It includes types like melanoma, basal cell carcinoma, and squamous cell carcinoma.",
-    symptoms: [
-      "New or changing mole",
-      "Asymmetry in skin lesion",
-      "Irregular borders",
-      "Multiple colors in a lesion",
-      "Bleeding or non-healing sore",
-      "Itching or pain in mole",
-      "Rapid growth of skin spot"
-    ],
-    treatment: [
-      "Surgical excision of tumor",
-      "Mohs micrographic surgery",
-      "Cryotherapy for small lesions",
-      "Radiation therapy for advanced cases",
-      "Immunotherapy for melanoma"
-    ]
-  },
-  {
-    disease: "Vitiligo",
-    description: "Vitiligo is a chronic autoimmune condition where the immune system destroys melanocytes, leading to loss of skin pigment and white patches on the skin.",
-    symptoms: [
-      "White or depigmented patches on skin",
-      "Symmetrical loss of pigment",
-      "Premature whitening of hair",
-      "Color loss in mucous membranes",
-      "Slow spreading patches over time"
-    ],
-    treatment: [
-      "Topical corticosteroids",
-      "Phototherapy (narrowband UVB)",
-      "Depigmentation for extensive cases",
-      "Skin camouflage cosmetics"
-    ]
-  }
+import actinicKeratosisData from '../../dataset/Actinic_Keratosis/actinicKeratosisData.js';
+import acneData from '../../dataset/Acne/acneData.js';
+import psoriasisData from '../../dataset/Psoriasis/psoriasisData.js';
+import skinCancerData from '../../dataset/SkinCancer/skinCancerData.js';
+import vitiligoData from '../../dataset/Vitiligo/vitiligoData.js';
+import benignTumorsData from '../../dataset/Benign_tumors/benignTumorsData.js';
+import bullousData from '../../dataset/Bullous/bullousData.js';
+import candidiasisData from '../../dataset/Candidiasis/candidiasisData.js';
+import drugEruptionData from '../../dataset/DrugEruption/drugEruptionData.js';
+import eczemaData from '../../dataset/Eczema/eczemaData.js';
+import infestationBitesData from '../../dataset/Infestation_Bites/infestationBitesData.js';
+import lichenData from '../../dataset/Lichen/lichenData.js';
+import lupusData from '../../dataset/Lupus/lupusData.js';
+import molesData from '../../dataset/Moles/molesData.js';
+import rosaceaData from '../../dataset/Rosacea/rosaceaData.js';
+
+const allDiseases = [
+  actinicKeratosisData,
+  acneData,
+  psoriasisData,
+  skinCancerData,
+  vitiligoData,
+  benignTumorsData,
+  bullousData,
+  candidiasisData,
+  drugEruptionData,
+  eczemaData,
+  infestationBitesData,
+  lichenData,
+  lupusData,
+  molesData,
+  rosaceaData,
 ];
 
 export default function Encyclopedia() {
+  const [diseases, setDiseases] = useState([]);
+  const [query, setQuery] = useState('');
+  const [chronicOnly, setChronicOnly] = useState('all'); // all | yes | no
+
+  // Initialize diseases once (avoid setState in effect for performance/lint friendliness)
+  useEffect(() => {
+    setDiseases(allDiseases);
+  }, []);
+
+
+  const getChronicValue = (item) => {
+    // Some datasets use item.chronic, others use item.overview.chronic
+    if (item?.overview?.chronic !== undefined) return item.overview.chronic;
+    if (item?.chronic !== undefined) return item.chronic;
+    return undefined;
+  };
+
+  const normalize = (s) => (s || '').toString().toLowerCase();
+
+  const filteredDiseases = diseases.filter((item) => {
+    const chronicValue = getChronicValue(item);
+
+    if (chronicOnly === 'yes') {
+      if (chronicValue !== true) return false;
+    } else if (chronicOnly === 'no') {
+      if (chronicValue !== false) return false;
+    }
+
+    const q = normalize(query).trim();
+    if (!q) return true;
+
+    const name = normalize(item.disease);
+    const overviewDesc = normalize(item.overview?.description || item.description);
+    const symptoms = (item.symptoms || []).map(normalize).join(' ');
+
+    return (
+      name.includes(q) ||
+      overviewDesc.includes(q) ||
+      symptoms.includes(q)
+    );
+  });
+
+  const getDiseaseImageUrl = (diseaseName) => {
+    // Placeholder image per disease (Unsplash Source).
+    // Note: Unsplash Source returns a random image for the query; no local assets required.
+    const q = encodeURIComponent(diseaseName);
+    return `https://source.unsplash.com/featured/600x420?skin,${q}`;
+  };
+
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6 text-center">Skin Condition Encyclopedia</h1>
-      <div className="space-y-8">
-        {encyclopedia.map((item, idx) => (
-          <div key={idx} className="bg-white rounded-xl shadow p-6 border border-slate-100">
-            <h2 className="text-xl font-semibold mb-2 text-[#5AA7A7]">{item.disease}</h2>
-            <p className="mb-2 text-slate-700">{item.description}</p>
-            <div className="mb-2">
-              <span className="font-bold text-slate-800">Symptoms:</span>
-              <ul className="list-disc ml-6 text-slate-600">
-                {item.symptoms.map((sym, i) => <li key={i}>{sym}</li>)}
-              </ul>
-            </div>
-            <div>
-              <span className="font-bold text-slate-800">Treatment:</span>
-              <ul className="list-disc ml-6 text-slate-600">
-                {item.treatment.map((treat, i) => <li key={i}>{treat}</li>)}
-              </ul>
-            </div>
+    <div className="p-8 max-w-6xl mx-auto">
+      <h1 className="text-3xl font-extrabold mb-6 text-center text-[#5AA7A7] drop-shadow">
+        Skin Condition Encyclopedia
+      </h1>
+
+      <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">Search</label>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search disease or symptoms..."
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#5AA7A7]/40 text-sm"
+            />
           </div>
-        ))}
+
+          <div className="w-full md:w-56">
+            <label className="block text-xs font-bold text-slate-700 mb-1">Chronic</label>
+            <select
+              value={chronicOnly}
+              onChange={(e) => setChronicOnly(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-[#5AA7A7]/40 text-sm bg-white"
+            >
+              <option value="all">All</option>
+              <option value="yes">Chronic only</option>
+              <option value="no">Not chronic</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-3 text-xs text-slate-500">
+          Showing <span className="font-bold text-slate-700">{filteredDiseases.length}</span> conditions
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {filteredDiseases.map((item) => {
+          const chronicValue = getChronicValue(item);
+          const imageUrl = getDiseaseImageUrl(item.disease);
+
+
+          return (
+            <div
+              key={item.disease}
+              className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-200 flex flex-col"
+            >
+
+              <div className="h-40 bg-slate-50">
+                <img
+                  src={imageUrl}
+                  alt={item.disease}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+
+              <div className="p-6 flex flex-col flex-1">
+                <h2 className="text-xl font-bold mb-2 text-[#489b9b]">{item.disease}</h2>
+                <p className="mb-2 text-slate-700 text-sm">
+                  {item.overview?.description || item.description}
+                </p>
+
+                <div className="mb-2">
+                  <span className="font-bold text-slate-800">Symptoms:</span>
+                  <ul className="list-disc ml-6 text-slate-600 text-xs">
+                    {(item.symptoms || []).map((sym, i) => (
+                      <li key={i}>{sym}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mb-2">
+                  <span className="font-bold text-slate-800">Causes:</span>
+                  <ul className="list-disc ml-6 text-slate-600 text-xs">
+                    {(item.causes || []).map((cause, i) => (
+                      <li key={i}>{cause}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mb-2">
+                  <span className="font-bold text-slate-800">Recommended Treatment:</span>
+                  <ul className="list-disc ml-6 text-slate-600 text-xs">
+                    {(item.recommendedTreatment || item.treatment || []).map((treat, i) => (
+                      <li key={i}>{treat}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {item.precautions && (
+                  <div className="mb-2">
+                    <span className="font-bold text-slate-800">Precautions:</span>
+                    <ul className="list-disc ml-6 text-slate-600 text-xs">
+                      {item.precautions.map((prec, i) => (
+                        <li key={i}>{prec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="mt-auto pt-2 text-xs text-slate-400">
+                  <span>Common Age Group: {item.overview?.common_age_group || 'All ages'}</span>
+                  {chronicValue !== undefined && (
+                    <span> | Chronic: {chronicValue ? 'Yes' : 'No'}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
+
