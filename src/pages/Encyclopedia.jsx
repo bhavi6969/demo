@@ -78,10 +78,10 @@ export default function Encyclopedia() {
   });
 
   const getDiseaseImageUrl = (diseaseName) => {
-    // Placeholder image per disease (Unsplash Source).
-    // Note: Unsplash Source returns a random image for the query; no local assets required.
+    // Unsplash Source sometimes blocks/returns 403 or nothing depending on browser/network.
+    // Use an additional parameter and a deterministic fallback.
     const q = encodeURIComponent(diseaseName);
-    return `https://source.unsplash.com/featured/600x420?skin,${q}`;
+    return `https://source.unsplash.com/featured/600x420?skin,${q}&sig=${q}`;
   };
 
   return (

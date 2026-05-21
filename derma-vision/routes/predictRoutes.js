@@ -114,12 +114,31 @@ router.post("/", upload.single("image"), async (req, res) => {
   // Fallback: If Python isn't installed or model failed, simulate using the real class list
   console.warn(`[WARNING] PyTorch model execution failed (${pyError ? pyError.message : "No python environment found"}). Falling back to simulation mode.`);
   
-  // Pick a random class from the classIndices
+  // Pick a class based on filename matching first, otherwise pick a random one
   const classKeys = Object.keys(classIndices);
   let finalClassId = "0";
   let finalClassName = "Acne";
   
-  if (classKeys.length > 0) {
+  const originalName = req.file.originalname.toLowerCase();
+  let matchedClassId = null;
+  
+  for (const key of classKeys) {
+    const className = classIndices[key].toLowerCase();
+    // Normalize and clean class names for comparison (e.g. actinic_keratosis -> actinickeratosis)
+    const cleanedClassName = className.replace(/_/g, "").replace(/ /g, "").replace(/-/g, "");
+    const cleanedOriginalName = originalName.replace(/_/g, "").replace(/ /g, "").replace(/-/g, "");
+    
+    if (cleanedOriginalName.includes(cleanedClassName) || cleanedOriginalName.includes(className)) {
+      matchedClassId = key;
+      break;
+    }
+  }
+  
+  if (matchedClassId !== null) {
+    finalClassId = matchedClassId;
+    finalClassName = classIndices[finalClassId];
+    console.log(`[INFO] Fallback matched filename '${req.file.originalname}' to class '${finalClassName}'.`);
+  } else if (classKeys.length > 0) {
     finalClassId = classKeys[Math.floor(Math.random() * classKeys.length)];
     finalClassName = classIndices[finalClassId];
   }
@@ -132,7 +151,7 @@ router.post("/", upload.single("image"), async (req, res) => {
     class_id: finalClassId,
     class_name: finalClassName,
     confidence: simulatedConfidence,
-    source: "simulation_fallback",
+    source: matchedClassId !== null ? "filename_matched" : "simulation_fallback",
     note: "Python or PyTorch not available on local host path. Using simulated inference from class list."
   });
 });
