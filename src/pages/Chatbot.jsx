@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 
 export default function Chatbot() {
   const [messages, setMessages] = useState([
-    { sender: 'ai', text: "Welcome to the Lumen Skin Assistant. I can help explain skin symptoms, review skincare routines, or clarify predicted conditions. What skin queries can I address for you?", time: '10:00 AM' }
+    { sender: 'ai', text: "Welcome to the DermaVision Skin Assistant. I can help explain skin symptoms, review skincare routines, or clarify predicted conditions. What skin queries can I address for you?", time: '10:00 AM' }
   ]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);

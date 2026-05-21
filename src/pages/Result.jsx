@@ -321,7 +321,7 @@ export default function Result() {
               <Stethoscope className="w-4.5 h-4.5 text-primary" /> Talk to a dermatologist
             </h4>
             <p className="text-[10px] text-slate-500 leading-normal font-medium">
-              Get a secure video consult within 30 minutes. Lumen-verified specialists, transparent pricing.
+              Get a secure video consult within 30 minutes. DermaVision-verified specialists, transparent pricing.
             </p>
           </div>
           

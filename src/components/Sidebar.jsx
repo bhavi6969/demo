@@ -21,7 +21,7 @@ export default function Sidebar() {
           <Sparkles className="w-4.5 h-4.5 fill-[#5AA7A7] text-transparent" />
         </div>
         <div className="text-left leading-tight">
-          <span className="font-heading font-extrabold text-sm text-[#111625] tracking-tight">Lumen</span>
+          <span className="font-heading font-extrabold text-sm text-[#111625] tracking-tight">DermaVision</span>
           <span className="text-[10px] text-slate-400 block -mt-0.5 font-medium">AI Healthcare OS</span>
         </div>
       </div>

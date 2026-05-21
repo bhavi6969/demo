@@ -212,7 +212,7 @@ export default function Dashboard() {
               {/* Header Text */}
               <div className="space-y-1.5">
                 <h2 className="font-heading font-extrabold text-xl text-slate-800 tracking-tight">
-                  Lumen AI is analyzing...
+                  DermaVision AI is analyzing...
                 </h2>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                   Running multi-stage dermatology vision pipeline.
