@@ -15,6 +15,7 @@ import Result from './pages/Result';
 import Doctors from './pages/Doctors';
 import Chatbot from './pages/Chatbot';
 import Settings from './pages/Settings';
+import Encyclopedia from './pages/Encyclopedia';
 
 // Layout for general public landing, login, and registration screens
 function PublicLayout() {
@@ -77,6 +78,7 @@ export default function App() {
         <Route element={<PublicLayout />}>
           <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
           <Route path="/signup" element={<PageWrapper><Signup /></PageWrapper>} />
+          <Route path="/encyclopedia" element={<PageWrapper><Encyclopedia /></PageWrapper>} />
         </Route>
 
         {/* Dashboard Routes */}

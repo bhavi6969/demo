@@ -49,6 +49,13 @@ export default function Navbar() {
 
       {/* Right Side Actions */}
       <div className="flex items-center gap-4">
+        {/* Encyclopedia Link */}
+        <button
+          onClick={() => navigate('/encyclopedia')}
+          className="px-3 py-2 rounded-full bg-[#5AA7A7] text-white text-xs font-bold shadow hover:bg-[#489b9b] transition-colors"
+        >
+          Encyclopedia
+        </button>
         
         {/* Notifications Bell */}
         <div className="relative" ref={dropdownRef}>
@@ -131,6 +138,7 @@ export default function Navbar() {
             <div onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }} className="py-2 text-xs font-bold text-slate-700 cursor-pointer">My Vitals</div>
             <div onClick={() => { navigate('/chatbot'); setMobileMenuOpen(false); }} className="py-2 text-xs font-bold text-slate-700 cursor-pointer">Skin Support</div>
             <div onClick={() => { navigate('/doctors'); setMobileMenuOpen(false); }} className="py-2 text-xs font-bold text-slate-700 cursor-pointer">Consult Doctor</div>
+            <div onClick={() => { navigate('/encyclopedia'); setMobileMenuOpen(false); }} className="py-2 text-xs font-bold text-slate-700 cursor-pointer">Encyclopedia</div>
             <div onClick={() => { navigate('/settings'); setMobileMenuOpen(false); }} className="py-2 text-xs font-bold text-slate-700 cursor-pointer">Settings</div>
           </div>
         </div>

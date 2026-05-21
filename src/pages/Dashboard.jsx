@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Upload, Camera, Play, CheckCircle2, ShieldCheck, Sparkles, X, Zap, HeartPulse, Brain, Activity, Droplets, ArrowRight, FileText } from 'lucide-react';
+import { Upload, Camera, Play, CheckCircle2, ShieldCheck, Sparkles, X, Zap, HeartPulse, Brain, Activity, Droplets, ArrowRight, FileText, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard() {
@@ -173,8 +173,91 @@ export default function Dashboard() {
     }
   ];
 
+  const pipelineSteps = [
+    { key: 'preprocess', label: 'Preprocessing image', threshold: 25 },
+    { key: 'segment', label: 'Lesion segmentation', threshold: 50 },
+    { key: 'classify', label: 'Pattern classification', threshold: 75 },
+    { key: 'score', label: 'Severity scoring', threshold: 100 }
+  ];
+
   return (
     <div className="space-y-6 text-left w-full pb-10">
+
+      {/* Fullscreen AI Scan Loading Page Overlay */}
+      <AnimatePresence>
+        {scanning && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-[#c4ece5] via-[#fcfad7] to-[#d8e5f2] p-6"
+          >
+            <div className="w-full max-w-md bg-[#faf9f6]/95 backdrop-blur-md rounded-[40px] p-8 md:p-10 border border-white/60 shadow-2xl text-center space-y-6">
+              
+              {/* Circular Brain Icon matching the screenshot */}
+              <div className="flex justify-center">
+                <div className="relative w-28 h-28 flex items-center justify-center">
+                  {/* Pulsing ring */}
+                  <div className="absolute inset-0 rounded-full border border-[#5AA7A7]/10 animate-ping"></div>
+                  {/* Double outer ring */}
+                  <div className="absolute inset-1.5 rounded-full border border-[#5AA7A7]/15"></div>
+                  <div className="absolute inset-3 rounded-full border border-slate-100/80 shadow-inner"></div>
+                  {/* Teal circle */}
+                  <div className="absolute inset-4.5 rounded-full bg-[#86CDC1] flex items-center justify-center shadow-lg">
+                    <Brain className="w-11 h-11 text-white fill-white/10" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Header Text */}
+              <div className="space-y-1.5">
+                <h2 className="font-heading font-extrabold text-xl text-slate-800 tracking-tight">
+                  Lumen AI is analyzing...
+                </h2>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  Running multi-stage dermatology vision pipeline.
+                </p>
+              </div>
+
+              {/* Progress Steps Checklist */}
+              <div className="space-y-2.5 pt-2">
+                {pipelineSteps.map((step, idx) => {
+                  const isCompleted = scanStep.progress >= step.threshold;
+                  const isCurrent = scanStep.progress >= (step.threshold - 25) && scanStep.progress < step.threshold;
+                  return (
+                    <div
+                      key={step.key}
+                      className={`flex items-center gap-3.5 px-5 py-3.5 rounded-[22px] border transition-all duration-300 text-left ${
+                        isCompleted
+                          ? 'bg-white border-slate-100 shadow-sm text-slate-800'
+                          : isCurrent
+                          ? 'bg-white border-[#5AA7A7]/40 shadow-sm text-slate-700 animate-pulse'
+                          : 'bg-white/40 border-slate-100/50 text-slate-350'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                        isCompleted
+                          ? 'bg-[#c6f0ea] border-[#5AA7A7]/30 text-[#5AA7A7]'
+                          : 'bg-slate-100 border-slate-200 text-slate-300'
+                      }`}>
+                        {isCompleted ? (
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        ) : (
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-extrabold tracking-wide">
+                        {step.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Hidden file input */}
       <input
