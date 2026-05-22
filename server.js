@@ -6,6 +6,7 @@ const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/authRoutes");
 const predictRoutes = require("./routes/predictRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 dotenv.config();
 
@@ -18,6 +19,12 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/predict", predictRoutes);
+app.use("/api/chat", chatRoutes);
+
+// Test endpoint
+app.get("/api/test", (req, res) => {
+  res.json({ success: true, message: "Backend API is working!" });
+});
 
 app.get("/", (req, res) => {
   res.send("Backend Running Successfully");

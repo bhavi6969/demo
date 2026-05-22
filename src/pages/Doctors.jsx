@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Star, ShieldCheck, MapPin, Calendar, Clock, X, Search, Sparkles, HeartPulse } from 'lucide-react';
+import { Star, ShieldCheck, MapPin, Calendar, Clock, X, Search, Sparkles, HeartPulse, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DoctorChat from '../components/DoctorChat';
 
 const DOCTORS = [
   {
@@ -46,6 +47,7 @@ export default function Doctors() {
   const [selectedDate, setSelectedDate] = useState('2026-05-21');
   const [activeSpecialty, setActiveSpecialty] = useState('All');
   const [bookedState, setBookedState] = useState(false);
+  const [chatDoctor, setChatDoctor] = useState(null);
 
   const specialties = ['All', 'Acne', 'Oncology', 'Eczema'];
 
@@ -134,12 +136,20 @@ export default function Doctors() {
               </p>
             </div>
 
-            <button
-              onClick={() => setSelectedDoctor(doc)}
-              className="w-full mt-6 py-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-primary to-blue-accent hover:brightness-105 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Calendar className="w-4 h-4" /> Book Consultation
-            </button>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setSelectedDoctor(doc)}
+                className="flex-1 py-3 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-primary to-blue-accent hover:brightness-105 shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Calendar className="w-4 h-4" /> Book Consultation
+              </button>
+              <button
+                onClick={() => setChatDoctor(doc)}
+                className="py-3 px-4 rounded-xl text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -237,6 +247,11 @@ export default function Doctors() {
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* Doctor Chat Modal */}
+      <AnimatePresence>
+        {chatDoctor && <DoctorChat doctor={chatDoctor} onClose={() => setChatDoctor(null)} />}
       </AnimatePresence>
     </div>
   );
