@@ -23,7 +23,14 @@
     background: linear-gradient(135deg, #c4ece5 0%, #fcfad7 45%, #d8e5f2 100%);
     color: #111625;
     min-height: 100vh;
+    overflow-x: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Dark mode overrides */

@@ -11,9 +11,9 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { addNotification } = useApp();
+  const { login } = useApp();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please fill in all diagnostic log credentials.');
@@ -23,16 +23,18 @@ export default function Login() {
     setLoading(true);
     setError('');
 
-    // Simulate login lag
-    setTimeout(() => {
+    try {
+      await login(email, password);
       setLoading(false);
-      addNotification('Logged in successfully. Secure session active.');
       navigate('/dashboard');
-    }, 1200);
+    } catch (err) {
+      setLoading(false);
+      setError(err.message || 'Authentication failed. Please check credentials.');
+    }
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-65px)] flex items-center justify-center bg-white dark:bg-[#16171d] px-6 py-12 overflow-hidden transition-colors duration-300">
+    <div className="relative min-h-[calc(100vh-65px)] flex items-center justify-center bg-white dark:bg-[#16171d] px-4 sm:px-6 py-10 sm:py-12 overflow-hidden transition-colors duration-300">
       
       {/* Dynamic Glowing Blobs */}
       <div className="absolute top-20 right-1/4 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse-slow"></div>
@@ -50,7 +52,7 @@ export default function Login() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md glass-panel p-8 rounded-3xl shadow-xl relative border border-slate-200/50 dark:border-white/5"
+        className="w-full max-w-md glass-panel p-6 sm:p-8 rounded-3xl shadow-xl relative border border-slate-200/50 dark:border-white/5"
       >
         {/* Brand */}
         <div className="text-center space-y-2 mb-8">

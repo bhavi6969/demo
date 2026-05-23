@@ -22,6 +22,31 @@ import vasculitisData from '../../dataset/Vasculitis/vasculitisData.js';
 import vitiligoData from '../../dataset/Vitiligo/vitiligoData.js';
 import wartsData from '../../dataset/Warts/wartsData.js';
 
+const DISEASE_UNSPLASH_IDS = {
+  acne: 'photo-1608248597279-f99d160bfcbc',
+  actinic_keratosis: 'photo-1620121692029-d088224ddc74',
+  benign_tumors: 'photo-1516549655169-df83a0774514',
+  bullous: 'photo-1579684389782-64d84b5e901a',
+  candidiasis: 'photo-1584515979956-d9f6e5d09982',
+  drugeruption: 'photo-1584308666744-24d5c474f2ae',
+  eczema: 'photo-1607613009820-a29f7bb81c04',
+  infestations_bites: 'photo-1573883430697-4c3479aae6b9',
+  lichen: 'photo-1618005182384-a83a8bd57fbe',
+  lupus: 'photo-1576091160399-112ba8d25d1d',
+  moles: 'photo-1505944270255-72b8c68c6a70',
+  psoriasis: 'photo-1522337360788-8b13dee7a37e',
+  rosacea: 'photo-1556228720-195a672e8a03',
+  seborrh_keratoses: 'photo-1614859324967-bdf461fcf7ec',
+  skincancer: 'photo-1551836022-d5d88e9218df',
+  sun_sunlight_damage: 'photo-1527631746610-bca00a040d60',
+  tinea: 'photo-1601049676099-e7ed07d825b0',
+  unknown_normal: 'photo-1616683693504-3ea7e9ad6fec',
+  vascular_tumors: 'photo-1532187640681-7335541ac76a',
+  vasculitis: 'photo-1576086213369-97a306d36557',
+  vitiligo: 'photo-1620802086300-3453b3b4f53f',
+  warts: 'photo-1506126613408-eca07ce68773'
+};
+
 /**
  * Normalizes and maps the raw dataset structure into the exact schema expected by the UI.
  */
@@ -66,6 +91,15 @@ const mapRawData = (data, id) => {
     dosage: med.usage || med.dosage || med.type || 'Apply as directed by physician'
   }));
 
+  const unsplashId = DISEASE_UNSPLASH_IDS[id] || 'photo-1616683693504-3ea7e9ad6fec';
+  const imageUrl = `https://images.unsplash.com/${unsplashId}?auto=format&fit=crop&w=600&q=80`;
+
+  const chronicValue = data.overview?.chronic !== undefined 
+    ? data.overview.chronic 
+    : (data.chronic !== undefined ? data.chronic : false);
+
+  const commonAgeGroup = data.overview?.common_age_group || data.common_age_group || 'All ages';
+
   return {
     id,
     name: data.disease || id,
@@ -73,15 +107,20 @@ const mapRawData = (data, id) => {
     severity: severityStr,
     severityColor,
     severityValue: severityVal,
+    description: data.overview?.description || data.description || '',
+    causes: data.causes || [],
     symptoms: data.symptoms || [],
-    treatments: data.recommendedTreatment || data.treatments || [],
+    treatments: data.recommendedTreatment || data.treatments || data.treatment || [],
     precautions: data.precautions || [],
     skincare: {
       morning: morningSkincare || 'Wash face with a gentle hydrating cleanser and apply SPF 50+.',
       night: nightSkincare || 'Cleanse skin thoroughly and apply target treatment followed by moisturizer.'
     },
     remedies: data.homeRemedies || data.remedies || [],
-    medicines
+    medicines,
+    chronic: chronicValue,
+    common_age_group: commonAgeGroup,
+    imageUrl
   };
 };
 

@@ -1,37 +1,57 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { User, Bell, Shield, Moon, Sun, Trash2, Save, LogOut } from 'lucide-react';
+import { User, Bell, Shield, Moon, Sun, Trash2, Save, LogOut, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Settings() {
-  const { user, updateProfile, scans } = useApp();
+  const { user, updateProfile, scans, logout } = useApp();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const avatarInputRef = useRef(null);
 
-  const [name, setName] = useState(user.name);
-  const [email, setEmail] = useState(user.email);
-  const [phone, setPhone] = useState(user.phone);
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [allergies, setAllergies] = useState(user?.allergies || '');
+  const [skinCondition, setSkinCondition] = useState(user?.skinCondition || '');
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || null);
   
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(true);
   const [biometrics, setBiometrics] = useState(false);
-
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const handleSubmit = (e) => {
+  const initials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'AM';
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    updateProfile({ name, email, phone });
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
+    try {
+      await updateProfile({ name, email, phone, allergies, skinCondition, avatar: avatarPreview });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleLogout = () => {
+    logout();
     navigate('/login');
   };
 
   return (
-    <div className="flex-grow p-6 lg:p-8 space-y-8 bg-slate-50/30 dark:bg-slate-900/10">
+    <div className="flex-grow p-4 md:p-6 lg:p-8 space-y-8 bg-slate-50/30 dark:bg-slate-900/10">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200/50 dark:border-slate-800 pb-6">
@@ -59,6 +79,31 @@ export default function Settings() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Avatar Upload */}
+              <div className="flex items-center gap-4 pb-2">
+                <div className="relative shrink-0">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-md" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-[#6C8CBF] text-white flex items-center justify-center font-extrabold text-lg font-heading shadow-md">
+                      {initials}
+                    </div>
+                  )}
+                  <button type="button" onClick={() => avatarInputRef.current?.click()}
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#5AA7A7] text-white flex items-center justify-center shadow-md hover:bg-[#4d9393] transition-colors cursor-pointer">
+                    <Camera className="w-3 h-3" />
+                  </button>
+                  <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{name}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{user.plan}</p>
+                  <button type="button" onClick={() => avatarInputRef.current?.click()}
+                    className="text-[10px] text-[#5AA7A7] font-bold hover:underline cursor-pointer mt-0.5">
+                    Change photo
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Full Name</label>
@@ -88,6 +133,29 @@ export default function Settings() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Known Allergies (Optional)</label>
+                  <input
+                    type="text"
+                    value={allergies}
+                    onChange={(e) => setAllergies(e.target.value)}
+                    placeholder="e.g. Penicillin, Peanuts"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Skin Condition (Optional)</label>
+                  <input
+                    type="text"
+                    value={skinCondition}
+                    onChange={(e) => setSkinCondition(e.target.value)}
+                    placeholder="e.g. Eczema, Psoriasis"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end pt-2">

@@ -6,7 +6,7 @@ export default function Footer() {
     <footer className="relative mt-auto border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#16171d]/20 transition-all duration-300">
       <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"></div>
       
-      <div className="max-w-7xl mx-auto px-6 py-12 md:py-16 grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 md:py-16 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
         {/* Brand Column */}
         <div className="space-y-4 md:col-span-1">
           <Link to="/" className="flex items-center gap-2">

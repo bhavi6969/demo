@@ -1,11 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Activity, Sparkles, Users, FileText, MessageSquare, UserRound, Settings } from 'lucide-react';
+import { LayoutDashboard, Activity, Sparkles, Users, FileText, MessageSquare, UserRound, Settings, ScanFace, LineChart, ShieldCheck } from 'lucide-react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
 
   const menuItems = [
     { path: '/', label: 'Home / Analysis', icon: Sparkles },
+    { path: '/full-analysis', label: 'Full Skin Analysis', icon: ScanFace },
+    { path: '/tracker', label: 'Lesion Tracker', icon: LineChart },
+    { path: '/scanner', label: 'Safety Scanner', icon: ShieldCheck },
     { path: '/detect', label: 'History & Reports', icon: FileText },
     { path: '/dashboard', label: 'My Vitals', icon: Activity },
     { path: '/chatbot', label: 'Skin Support', icon: MessageSquare },
@@ -52,22 +55,6 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* Pro Plan Widget */}
-        <div className="p-4 rounded-[20px] bg-gradient-to-br from-[#E2D36B] to-[#BAC94A] border border-white/20 shadow-md text-left text-slate-900 space-y-3 relative overflow-hidden mt-6 shrink-0">
-          <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-white/10 rounded-full blur-md"></div>
-          <div>
-            <h5 className="font-heading font-extrabold text-[11px] uppercase tracking-wide text-slate-950">Premium</h5>
-            <p className="text-[10px] text-slate-950/85 mt-0.5 leading-snug font-semibold">
-              Unlock live board-certified doctor reviews and diagnostic histories.
-            </p>
-          </div>
-          <button 
-            onClick={() => navigate('/settings')}
-            className="w-full py-2.5 rounded-full bg-white hover:bg-slate-50 text-[11px] font-extrabold text-slate-900 transition-all shadow-sm cursor-pointer"
-          >
-            Upgrade
-          </button>
-        </div>
       </div>
 
       {/* Block 3: Settings Pill Card */}

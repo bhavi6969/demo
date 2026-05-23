@@ -74,7 +74,7 @@ export default function Doctors() {
   };
 
   return (
-    <div className="flex-grow p-6 lg:p-8 space-y-8 bg-slate-50/30 dark:bg-slate-900/10">
+    <div className="flex-grow p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8 bg-slate-50/30 dark:bg-slate-900/10">
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200/50 dark:border-slate-800 pb-6">
@@ -218,7 +218,7 @@ export default function Doctors() {
                     <label className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" /> Available Hours
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {selectedDoctor.slots.map((slot) => (
                         <button
                           key={slot}

@@ -10,14 +10,16 @@ export default function Signup() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [allergies, setAllergies] = useState('');
+  const [skinCondition, setSkinCondition] = useState('');
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate();
-  const { addNotification, updateProfile } = useApp();
+  const { signup } = useApp();
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     if (!name || !email || !password || !confirmPassword) {
       setError('Please provide all necessary registration data.');
@@ -35,21 +37,18 @@ export default function Signup() {
     setLoading(true);
     setError('');
 
-    setTimeout(() => {
+    try {
+      await signup(name, email, password, phone, allergies, skinCondition);
       setLoading(false);
-      updateProfile({
-        name,
-        email,
-        phone: phone || '+1 (555) 000-0000',
-        plan: 'Free Sandbox Account'
-      });
-      addNotification(`Welcome, ${name}! Your diagnostic account is initialized.`);
       navigate('/dashboard');
-    }, 1500);
+    } catch (err) {
+      setLoading(false);
+      setError(err.message || 'Registration failed. Please try again.');
+    }
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-65px)] flex items-center justify-center bg-white dark:bg-[#16171d] px-6 py-12 overflow-hidden transition-colors duration-300">
+    <div className="relative min-h-[calc(100vh-65px)] flex items-center justify-center bg-white dark:bg-[#16171d] px-4 sm:px-6 py-10 sm:py-12 overflow-hidden transition-colors duration-300">
       
       {/* Background Ornaments */}
       <div className="absolute top-20 left-1/4 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse-slow"></div>
@@ -66,7 +65,7 @@ export default function Signup() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-lg glass-panel p-8 rounded-3xl shadow-xl relative border border-slate-200/50 dark:border-white/5"
+        className="w-full max-w-lg glass-panel p-6 sm:p-8 rounded-3xl shadow-xl relative border border-slate-200/50 dark:border-white/5"
       >
         <div className="text-center space-y-2 mb-8">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-mint flex items-center justify-center shadow-md mx-auto mb-3">
@@ -127,6 +126,35 @@ export default function Signup() {
                 className="w-full pl-10 pr-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
               />
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          {/* Allergies & Skin Conditions */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1 text-left">
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Known Allergies (Optional)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="e.g. Penicillin, Peanuts"
+                  value={allergies}
+                  onChange={(e) => setAllergies(e.target.value)}
+                  className="w-full pl-4 pr-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="text-xs font-bold text-slate-500 dark:text-slate-400">Skin Condition (Optional)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="e.g. Eczema, Psoriasis"
+                  value={skinCondition}
+                  onChange={(e) => setSkinCondition(e.target.value)}
+                  className="w-full pl-4 pr-4 py-3 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
+                />
+              </div>
             </div>
           </div>
 

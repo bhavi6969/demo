@@ -55,87 +55,125 @@ elif os.path.exists(model_folder_path):
 else:
     print_error("Model weights (best.pt or best.pt (1)/best directory) not found.")
 
-# 5. Load PyTorch Model
+# 5. Device Setup
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = None
 
+# 6. Try YOLO (Ultralytics) Inference First (Highly recommended for best.pt)
+yolo_success = False
+yolo_err_msg = ""
 try:
-    # Try loading as a full PyTorch model object first
-    model = torch.load(model_target, map_location=device)
+    from ultralytics import YOLO
+    yolo_model = YOLO(model_target)
     
-    # If the loaded object is a dictionary (state dict, checkpoint, etc.), extract the model if possible
-    if isinstance(model, dict):
-        if 'model' in model:
-            model = model['model']
-        else:
-            # It's a raw state dict, meaning we need the original class definition.
-            # We print a helpful error since we don't have the custom CNN class definition.
-            print_error("Loaded model weight is a state_dict rather than the full model object. Please provide the model class architecture code.")
-
-    # Put in evaluation mode
-    if hasattr(model, 'eval'):
-        model.eval()
-    else:
-         print_error("Loaded object is not a valid PyTorch model (missing eval() method).")
-         
-except Exception as e:
-    # Check if they trained it using YOLO (Ultralytics)
-    try:
-        from ultralytics import YOLO
-        yolo_model = YOLO(model_target)
-        # If it's YOLO classification, load the underlying torch model
-        model = yolo_model.model
-        model.to(device)
-        model.eval()
-    except Exception as yolo_err:
-        print_error(f"Failed to load PyTorch model. Standard PyTorch load error: {str(e)}. YOLO load error: {str(yolo_err)}")
-
-# 6. Image Preprocessing
-try:
-    img = Image.open(image_path).convert('RGB')
-    
-    # Standard classification transform
-    preprocess = transforms.Compose([
-        transforms.Resize((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
-        )
-    ])
-    
-    input_tensor = preprocess(img)
-    input_batch = input_tensor.unsqueeze(0).to(device) # create a mini-batch as expected by the model
-except Exception as e:
-    print_error(f"Image preprocessing failed: {str(e)}")
-
-# 7. Model Inference
-try:
-    with torch.no_grad():
-        output = model(input_batch)
+    # Run YOLO prediction directly. YOLO handles its own optimal image loading & preprocessing internally.
+    results = yolo_model.predict(source=image_path, device=device, verbose=False)
+    if len(results) > 0 and hasattr(results[0], 'probs') and results[0].probs is not None:
+        r = results[0]
+        probs = r.probs
         
-        # If output is a list/tuple (common in YOLO outputs), extract the primary tensor
-        if isinstance(output, (list, tuple)):
-            output = output[0]
+        # Get top 3 predictions
+        top3_indices = probs.top5[:3]
+        predictions = []
+        for idx_tensor in top3_indices:
+            idx = int(idx_tensor)
+            class_idx = str(idx)
+            conf = probs.data[idx].item()
+            name = class_indices.get(class_idx, r.names.get(idx, "Unknown"))
+            predictions.append({
+                "class_id": class_idx,
+                "class_name": name,
+                "confidence": conf
+            })
             
-        probabilities = torch.nn.functional.softmax(output[0], dim=0)
-        
-    # Get highest probability class
-    confidence, class_idx_tensor = torch.max(probabilities, 0)
-    class_idx = str(class_idx_tensor.item())
-    confidence_val = confidence.item()
-    
-    # Resolve class name from index
-    predicted_class_name = class_indices.get(class_idx, "Unknown")
-    
-    # Output successful prediction
-    result = {
-        "success": True,
-        "class_id": class_idx,
-        "class_name": predicted_class_name,
-        "confidence": confidence_val
-    }
-    print(json.dumps(result))
+        primary = predictions[0]
+        result = {
+            "success": True,
+            "class_id": primary["class_id"],
+            "class_name": primary["class_name"],
+            "confidence": primary["confidence"],
+            "predictions": predictions
+        }
+        print(json.dumps(result))
+        yolo_success = True
+except Exception as yolo_err:
+    yolo_err_msg = str(yolo_err)
 
-except Exception as e:
-    print_error(f"Model inference failed: {str(e)}")
+if not yolo_success:
+    # 7. Fallback to Standard PyTorch Model Inference
+    model = None
+    try:
+        # Load with weights_only=False to allow custom architectures
+        model = torch.load(model_target, map_location=device, weights_only=False)
+        
+        if isinstance(model, dict):
+            if 'model' in model:
+                model = model['model']
+            else:
+                print_error("Loaded model weight is a state_dict rather than the full model object. Please provide the model class architecture code.")
+
+        if hasattr(model, 'eval'):
+            model.eval()
+        else:
+             print_error("Loaded object is not a valid PyTorch model (missing eval() method).")
+             
+    except Exception as e:
+        print_error(f"Failed to load PyTorch model. YOLO error: {yolo_err_msg}. PyTorch error: {str(e)}")
+
+    # 8. Standard Image Preprocessing (ImageNet Normalization)
+    try:
+        from PIL import Image
+        import torchvision.transforms as transforms
+        
+        img = Image.open(image_path).convert('RGB')
+        
+        preprocess = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225]
+            )
+        ])
+        
+        input_tensor = preprocess(img)
+        input_batch = input_tensor.unsqueeze(0).to(device)
+    except Exception as e:
+        print_error(f"Image preprocessing failed: {str(e)}")
+
+    # 9. Run manual PyTorch forward pass
+    try:
+        with torch.no_grad():
+            output = model(input_batch)
+            if isinstance(output, (list, tuple)):
+                output = output[0]
+            probabilities = torch.nn.functional.softmax(output[0], dim=0)
+            
+        # Get top 3 predictions
+        num_classes = len(probabilities)
+        k = min(3, num_classes)
+        topk_confs, topk_indices = torch.topk(probabilities, k)
+        
+        predictions = []
+        for idx_tensor, conf_tensor in zip(topk_indices, topk_confs):
+            idx = idx_tensor.item()
+            class_idx = str(idx)
+            conf = conf_tensor.item()
+            name = class_indices.get(class_idx, "Unknown")
+            predictions.append({
+                "class_id": class_idx,
+                "class_name": name,
+                "confidence": conf
+            })
+            
+        primary = predictions[0]
+        result = {
+            "success": True,
+            "class_id": primary["class_id"],
+            "class_name": primary["class_name"],
+            "confidence": primary["confidence"],
+            "predictions": predictions
+        }
+        print(json.dumps(result))
+    except Exception as e:
+        print_error(f"Model inference failed: {str(e)}")
+

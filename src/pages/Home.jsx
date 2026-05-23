@@ -16,10 +16,19 @@ export default function Home() {
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState({ label: '', progress: 0 });
 
+  // Client-side image cropper states
+  const [rawImage, setRawImage] = useState(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropBox, setCropBox] = useState({ x: 0, y: 0, size: 200 });
+  const [displaySize, setDisplaySize] = useState(null);
+  const [dragMode, setDragMode] = useState(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, box: null });
+
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const imageRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -60,7 +69,8 @@ export default function Home() {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setImage(reader.result);
+      setRawImage(reader.result);
+      setIsCropping(true);
       stopCamera();
     };
     reader.readAsDataURL(file);
@@ -97,11 +107,13 @@ export default function Home() {
       canvas.height = video.videoHeight || 480;
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
-      setImage(dataUrl);
+      setRawImage(dataUrl);
+      setIsCropping(true);
       stopCamera();
     } else {
       // Simulate photo snapshot
-      setImage('https://images.unsplash.com/photo-1606501170755-58210fe9f2a2?w=500&auto=format&fit=crop&q=80');
+      setRawImage('https://images.unsplash.com/photo-1606501170755-58210fe9f2a2?w=500&auto=format&fit=crop&q=80');
+      setIsCropping(true);
       stopCamera();
     }
   };
@@ -117,6 +129,171 @@ export default function Home() {
   const handleClear = () => {
     setImage(null);
     stopCamera();
+  };
+
+  // Image Cropping Helper Functions
+  const handleImageLoad = (e) => {
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    setDisplaySize({ width: rect.width, height: rect.height });
+
+    const minDim = Math.min(rect.width, rect.height);
+    const size = minDim * 0.6;
+    setCropBox({
+      x: (rect.width - size) / 2,
+      y: (rect.height - size) / 2,
+      size: size
+    });
+  };
+
+  const startDrag = (e, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragMode(mode);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      box: { ...cropBox }
+    });
+  };
+
+  const handleDragMove = (e) => {
+    if (!dragMode || !dragStart.box || !displaySize) return;
+    e.preventDefault();
+
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+
+    let { x, y, size } = dragStart.box;
+
+    if (dragMode === 'move') {
+      let newX = x + dx;
+      let newY = y + dy;
+
+      newX = Math.max(0, Math.min(newX, displaySize.width - size));
+      newY = Math.max(0, Math.min(newY, displaySize.height - size));
+
+      setCropBox({ x: newX, y: newY, size });
+    } else {
+      let delta = 0;
+      const minSize = 40;
+
+      switch (dragMode) {
+        case 'bottom-right': {
+          delta = Math.max(dx, dy);
+          let newSize = Math.max(minSize, Math.min(size + delta, displaySize.width - x, displaySize.height - y));
+          setCropBox({ x, y, size: newSize });
+          break;
+        }
+        case 'top-left': {
+          delta = Math.max(-dx, -dy);
+          let maxDelta = Math.min(x, y);
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x: x - delta,
+            y: y - delta,
+            size: newSize
+          });
+          break;
+        }
+        case 'top-right': {
+          delta = Math.max(dx, -dy);
+          let maxDelta = Math.min(displaySize.width - (x + size), y);
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x,
+            y: y - delta,
+            size: newSize
+          });
+          break;
+        }
+        case 'bottom-left': {
+          delta = Math.max(-dx, dy);
+          let maxDelta = Math.min(x, displaySize.height - (y + size));
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x: x - delta,
+            y,
+            size: newSize
+          });
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  };
+
+  const stopDrag = (e) => {
+    if (dragMode) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      setDragMode(null);
+    }
+  };
+
+  const executeCrop = () => {
+    if (!imageRef.current || !displaySize) return;
+    const img = imageRef.current;
+
+    const scaleX = img.naturalWidth / displaySize.width;
+    const scaleY = img.naturalHeight / displaySize.height;
+
+    const sourceX = cropBox.x * scaleX;
+    const sourceY = cropBox.y * scaleY;
+    const sourceSize = cropBox.size * scaleX;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = 224;
+    cropCanvas.height = 224;
+
+    const ctx = cropCanvas.getContext('2d');
+    
+    try {
+      ctx.drawImage(
+        img,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        224,
+        224
+      );
+
+      const croppedDataUrl = cropCanvas.toDataURL('image/jpeg', 0.9);
+      setImage(croppedDataUrl);
+      setIsCropping(false);
+      setRawImage(null);
+      setDisplaySize(null);
+    } catch (err) {
+      console.error('Failed to crop image:', err);
+      alert('Could not crop the image. If you are using a demo image, CORS might be blocking it. Please try uploading a local image instead.');
+    }
+  };
+
+  const cancelCrop = () => {
+    setIsCropping(false);
+    setRawImage(null);
+    setDisplaySize(null);
   };
 
   const startAnalysis = async () => {
@@ -152,6 +329,138 @@ export default function Home() {
 
   return (
     <div className="space-y-6 text-left w-full pb-10">
+
+      {/* Fullscreen Image Cropper Overlay */}
+      <AnimatePresence>
+        {isCropping && rawImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-955/80 backdrop-blur-md p-4 sm:p-6"
+            style={{ backgroundColor: 'rgba(2, 6, 23, 0.8)' }}
+          >
+            <div className="w-full max-w-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] p-6 md:p-8 border border-white/20 shadow-2xl flex flex-col space-y-6 max-h-[90vh]">
+              
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <h3 className="font-heading font-extrabold text-lg md:text-xl text-slate-800 dark:text-white">
+                    Crop Lesion Region
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Drag the selection area over the lesion. Corner handles resize the box.
+                  </p>
+                </div>
+                <button
+                  onClick={cancelCrop}
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Workspace (Image & Crop box) */}
+              <div className="flex-1 min-h-[30vh] flex items-center justify-center bg-slate-100 dark:bg-slate-950/50 rounded-2xl p-4 overflow-hidden relative border border-slate-200/50 dark:border-slate-800">
+                <div className="relative inline-block select-none mx-auto max-h-[50vh] max-w-full">
+                  <img
+                    ref={imageRef}
+                    src={rawImage}
+                    onLoad={handleImageLoad}
+                    className="max-h-[50vh] max-w-full object-contain pointer-events-none rounded-lg"
+                    crossOrigin="anonymous"
+                  />
+                  {displaySize && (
+                    <div
+                      className="absolute inset-0 w-full h-full touch-none"
+                      onPointerMove={handleDragMove}
+                      onPointerUp={stopDrag}
+                      onPointerLeave={stopDrag}
+                    >
+                      {/* Dark Overlay around crop box */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                        <path
+                          fill="rgba(0, 0, 0, 0.65)"
+                          fillRule="evenodd"
+                          d={`M 0,0 L ${displaySize.width},0 L ${displaySize.width},${displaySize.height} L 0,${displaySize.height} Z
+                              M ${cropBox.x},${cropBox.y} L ${cropBox.x},${cropBox.y + cropBox.size} L ${cropBox.x + cropBox.size},${cropBox.y + cropBox.size} L ${cropBox.x + cropBox.size},${cropBox.y} Z`}
+                        />
+                        {/* Crop Box Border Line */}
+                        <rect
+                          x={cropBox.x}
+                          y={cropBox.y}
+                          width={cropBox.size}
+                          height={cropBox.size}
+                          fill="none"
+                          stroke="#5AA7A7"
+                          strokeWidth="2.5"
+                        />
+                      </svg>
+
+                      {/* Interactive Drag & Resize Overlay Box */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: cropBox.x,
+                          top: cropBox.y,
+                          width: cropBox.size,
+                          height: cropBox.size,
+                        }}
+                        className="absolute cursor-move select-none"
+                        onPointerDown={(e) => startDrag(e, 'move')}
+                      >
+                        {/* Glowing corners to suggest interactivity */}
+                        <div className="absolute inset-0 border border-white/20 pointer-events-none"></div>
+
+                        {/* Corner Handles */}
+                        {/* Top-Left */}
+                        <div
+                          className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nwse-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'top-left')}
+                        />
+                        {/* Top-Right */}
+                        <div
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nesw-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'top-right')}
+                        />
+                        {/* Bottom-Left */}
+                        <div
+                          className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nesw-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'bottom-left')}
+                        />
+                        {/* Bottom-Right */}
+                        <div
+                          className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nwse-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'bottom-right')}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3.5 border-t border-slate-100 dark:border-slate-800/80 pt-4">
+                <button
+                  type="button"
+                  onClick={cancelCrop}
+                  className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeCrop}
+                  className="px-6 py-2.5 rounded-full text-xs font-extrabold text-white bg-gradient-to-r from-[#96D7C6] to-[#5AA7A7] hover:brightness-105 shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Confirm Crop (224x224)
+                </button>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Fullscreen AI Scan Loading Page Overlay */}
       <AnimatePresence>
@@ -241,12 +550,12 @@ export default function Home() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* CARD 1: Calmer way to understand skin health */}
-      <div className="glass-panel rounded-[32px] p-8 md:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center min-h-[380px]">
+      <div className="glass-panel rounded-[32px] p-6 md:p-8 lg:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Decorative subtle background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#c6f0ea]/20 rounded-full blur-3xl -z-10 animate-float-slow"></div>
 
         {/* Left Side Content */}
-        <div className="lg:col-span-7 space-y-6">
+        <div className="lg:col-span-7 space-y-5 md:space-y-6">
           {/* Sparkles Badge */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/70 border border-white/60 shadow-sm text-[11px] font-bold text-[#5AA7A7]">
             <Sparkles className="w-3.5 h-3.5 fill-[#5AA7A7] text-transparent" />
@@ -291,8 +600,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right Side Illustration */}
-        <div className="lg:col-span-5 flex justify-center items-center relative">
+        {/* Right Side Illustration — hidden on mobile to save space */}
+        <div className="lg:col-span-5 hidden lg:flex justify-center items-center relative">
           <div className="relative w-80 h-80 sm:w-[380px] sm:h-[320px] flex items-center justify-center select-none">
             
             {/* HRV Trend Badge */}
@@ -356,7 +665,7 @@ export default function Home() {
       </div>
 
       {/* CARD 2: AI-Powered Skin Analysis in Seconds (Interactive Scanner) */}
-      <div className="glass-panel rounded-[32px] p-8 md:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <div className="glass-panel rounded-[32px] p-6 md:p-8 lg:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         
         {/* Left Side Info */}
         <div className="lg:col-span-7 space-y-6">

@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Upload, Camera, Play, CheckCircle2, ShieldCheck, Sparkles, X, Zap, HeartPulse, Brain, Activity, Droplets, ArrowRight, FileText, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+
+// Sparkline data per stat
+const SPARKLINES = {
+  heart: [{ v: 68 }, { v: 72 }, { v: 70 }, { v: 74 }, { v: 71 }, { v: 73 }, { v: 72 }],
+  scans: [{ v: 1 }, { v: 2 }, { v: 2 }, { v: 3 }, { v: 4 }, { v: 4 }, { v: 5 }],
+  hydration: [{ v: 80 }, { v: 82 }, { v: 79 }, { v: 85 }, { v: 84 }, { v: 86 }, { v: 86 }],
+  risk: [{ v: 3 }, { v: 2 }, { v: 3 }, { v: 2 }, { v: 2 }, { v: 1 }, { v: 1 }],
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,10 +25,19 @@ export default function Dashboard() {
   const [scanning, setScanning] = useState(false);
   const [scanStep, setScanStep] = useState({ label: '', progress: 0 });
 
+  // Client-side image cropper states
+  const [rawImage, setRawImage] = useState(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropBox, setCropBox] = useState({ x: 0, y: 0, size: 200 });
+  const [displaySize, setDisplaySize] = useState(null);
+  const [dragMode, setDragMode] = useState(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, box: null });
+
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const imageRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -39,9 +57,15 @@ export default function Dashboard() {
   };
 
   const processFile = (file) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file.');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
-      setImage(event.target?.result);
+      setRawImage(event.target?.result);
+      setIsCropping(true);
+      stopCamera();
     };
     reader.readAsDataURL(file);
   };
@@ -92,11 +116,13 @@ export default function Dashboard() {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg');
-      setImage(dataUrl);
+      setRawImage(dataUrl);
+      setIsCropping(true);
       stopCamera();
     } else {
       // Simulate photo snapshot
-      setImage('https://images.unsplash.com/photo-1606501170755-58210fe9f2a2?w=500&auto=format&fit=crop&q=80');
+      setRawImage('https://images.unsplash.com/photo-1606501170755-58210fe9f2a2?w=500&auto=format&fit=crop&q=80');
+      setIsCropping(true);
       stopCamera();
     }
   };
@@ -112,6 +138,171 @@ export default function Dashboard() {
   const handleClear = () => {
     setImage(null);
     stopCamera();
+  };
+
+  // Image Cropping Helper Functions
+  const handleImageLoad = (e) => {
+    const img = e.currentTarget;
+    const rect = img.getBoundingClientRect();
+    setDisplaySize({ width: rect.width, height: rect.height });
+
+    const minDim = Math.min(rect.width, rect.height);
+    const size = minDim * 0.6;
+    setCropBox({
+      x: (rect.width - size) / 2,
+      y: (rect.height - size) / 2,
+      size: size
+    });
+  };
+
+  const startDrag = (e, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragMode(mode);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      box: { ...cropBox }
+    });
+  };
+
+  const handleDragMove = (e) => {
+    if (!dragMode || !dragStart.box || !displaySize) return;
+    e.preventDefault();
+
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+
+    let { x, y, size } = dragStart.box;
+
+    if (dragMode === 'move') {
+      let newX = x + dx;
+      let newY = y + dy;
+
+      newX = Math.max(0, Math.min(newX, displaySize.width - size));
+      newY = Math.max(0, Math.min(newY, displaySize.height - size));
+
+      setCropBox({ x: newX, y: newY, size });
+    } else {
+      let delta = 0;
+      const minSize = 40;
+
+      switch (dragMode) {
+        case 'bottom-right': {
+          delta = Math.max(dx, dy);
+          let newSize = Math.max(minSize, Math.min(size + delta, displaySize.width - x, displaySize.height - y));
+          setCropBox({ x, y, size: newSize });
+          break;
+        }
+        case 'top-left': {
+          delta = Math.max(-dx, -dy);
+          let maxDelta = Math.min(x, y);
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x: x - delta,
+            y: y - delta,
+            size: newSize
+          });
+          break;
+        }
+        case 'top-right': {
+          delta = Math.max(dx, -dy);
+          let maxDelta = Math.min(displaySize.width - (x + size), y);
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x,
+            y: y - delta,
+            size: newSize
+          });
+          break;
+        }
+        case 'bottom-left': {
+          delta = Math.max(-dx, dy);
+          let maxDelta = Math.min(x, displaySize.height - (y + size));
+          delta = Math.min(delta, maxDelta);
+          let newSize = size + delta;
+          if (newSize < minSize) {
+            delta = minSize - size;
+            newSize = minSize;
+          }
+          setCropBox({
+            x: x - delta,
+            y,
+            size: newSize
+          });
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  };
+
+  const stopDrag = (e) => {
+    if (dragMode) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      setDragMode(null);
+    }
+  };
+
+  const executeCrop = () => {
+    if (!imageRef.current || !displaySize) return;
+    const img = imageRef.current;
+
+    const scaleX = img.naturalWidth / displaySize.width;
+    const scaleY = img.naturalHeight / displaySize.height;
+
+    const sourceX = cropBox.x * scaleX;
+    const sourceY = cropBox.y * scaleY;
+    const sourceSize = cropBox.size * scaleX;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = 224;
+    cropCanvas.height = 224;
+
+    const ctx = cropCanvas.getContext('2d');
+    
+    try {
+      ctx.drawImage(
+        img,
+        sourceX,
+        sourceY,
+        sourceSize,
+        sourceSize,
+        0,
+        0,
+        224,
+        224
+      );
+
+      const croppedDataUrl = cropCanvas.toDataURL('image/jpeg', 0.9);
+      setImage(croppedDataUrl);
+      setIsCropping(false);
+      setRawImage(null);
+      setDisplaySize(null);
+    } catch (err) {
+      console.error('Failed to crop image:', err);
+      alert('Could not crop the image. If you are using a demo image, CORS might be blocking it. Please try uploading a local image instead.');
+    }
+  };
+
+  const cancelCrop = () => {
+    setIsCropping(false);
+    setRawImage(null);
+    setDisplaySize(null);
   };
 
   const startAnalysis = async () => {
@@ -139,38 +330,10 @@ export default function Dashboard() {
   ];
 
   const stats = [
-    {
-      label: 'AVG. HEART RATE',
-      value: '72 bpm',
-      trend: '↗ 2.1%',
-      icon: HeartPulse,
-      color: 'text-[#5AA7A7]',
-      bgColor: 'bg-[#e2f3f0]'
-    },
-    {
-      label: 'COMPLETED SCANS',
-      value: (scans?.length || 0).toString(),
-      trend: '↗ 1 new today',
-      icon: FileText,
-      color: 'text-[#BAC94A]',
-      bgColor: 'bg-[#f7f8dc]'
-    },
-    {
-      label: 'HYDRATION INDEX',
-      value: '86%',
-      trend: '↗ 1.4%',
-      icon: Droplets,
-      color: 'text-[#E2D36B]',
-      bgColor: 'bg-[#f9f7dc]'
-    },
-    {
-      label: 'AI RISK INDEX',
-      value: 'Low',
-      trend: 'Stable',
-      icon: Brain,
-      color: 'text-[#6C8CBF]',
-      bgColor: 'bg-[#ebf3f9]'
-    }
+    { label: 'AVG. HEART RATE', value: '72 bpm', trend: '↗ 2.1%', icon: HeartPulse, color: 'text-[#5AA7A7]', bgColor: 'bg-[#e2f3f0]', sparkKey: 'heart', sparkColor: '#5AA7A7' },
+    { label: 'COMPLETED SCANS', value: (scans?.length || 0).toString(), trend: '↗ 1 new today', icon: FileText, color: 'text-[#BAC94A]', bgColor: 'bg-[#f7f8dc]', sparkKey: 'scans', sparkColor: '#BAC94A' },
+    { label: 'HYDRATION INDEX', value: '86%', trend: '↗ 1.4%', icon: Droplets, color: 'text-[#E2D36B]', bgColor: 'bg-[#f9f7dc]', sparkKey: 'hydration', sparkColor: '#E2D36B' },
+    { label: 'AI RISK INDEX', value: 'Low', trend: 'Stable', icon: Brain, color: 'text-[#6C8CBF]', bgColor: 'bg-[#ebf3f9]', sparkKey: 'risk', sparkColor: '#6C8CBF' },
   ];
 
   const pipelineSteps = [
@@ -182,6 +345,138 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 text-left w-full pb-10">
+
+      {/* Fullscreen Image Cropper Overlay */}
+      <AnimatePresence>
+        {isCropping && rawImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-955/80 backdrop-blur-md p-4 sm:p-6"
+            style={{ backgroundColor: 'rgba(2, 6, 23, 0.8)' }}
+          >
+            <div className="w-full max-w-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] p-6 md:p-8 border border-white/20 shadow-2xl flex flex-col space-y-6 max-h-[90vh]">
+              
+              {/* Header */}
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <h3 className="font-heading font-extrabold text-lg md:text-xl text-slate-800 dark:text-white">
+                    Crop Lesion Region
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium">
+                    Drag the selection area over the lesion. Corner handles resize the box.
+                  </p>
+                </div>
+                <button
+                  onClick={cancelCrop}
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-650 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Workspace (Image & Crop box) */}
+              <div className="flex-1 min-h-[30vh] flex items-center justify-center bg-slate-100 dark:bg-slate-950/50 rounded-2xl p-4 overflow-hidden relative border border-slate-200/50 dark:border-slate-800">
+                <div className="relative inline-block select-none mx-auto max-h-[50vh] max-w-full">
+                  <img
+                    ref={imageRef}
+                    src={rawImage}
+                    onLoad={handleImageLoad}
+                    className="max-h-[50vh] max-w-full object-contain pointer-events-none rounded-lg"
+                    crossOrigin="anonymous"
+                  />
+                  {displaySize && (
+                    <div
+                      className="absolute inset-0 w-full h-full touch-none"
+                      onPointerMove={handleDragMove}
+                      onPointerUp={stopDrag}
+                      onPointerLeave={stopDrag}
+                    >
+                      {/* Dark Overlay around crop box */}
+                      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                        <path
+                          fill="rgba(0, 0, 0, 0.65)"
+                          fillRule="evenodd"
+                          d={`M 0,0 L ${displaySize.width},0 L ${displaySize.width},${displaySize.height} L 0,${displaySize.height} Z
+                              M ${cropBox.x},${cropBox.y} L ${cropBox.x},${cropBox.y + cropBox.size} L ${cropBox.x + cropBox.size},${cropBox.y + cropBox.size} L ${cropBox.x + cropBox.size},${cropBox.y} Z`}
+                        />
+                        {/* Crop Box Border Line */}
+                        <rect
+                          x={cropBox.x}
+                          y={cropBox.y}
+                          width={cropBox.size}
+                          height={cropBox.size}
+                          fill="none"
+                          stroke="#5AA7A7"
+                          strokeWidth="2.5"
+                        />
+                      </svg>
+
+                      {/* Interactive Drag & Resize Overlay Box */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: cropBox.x,
+                          top: cropBox.y,
+                          width: cropBox.size,
+                          height: cropBox.size,
+                        }}
+                        className="absolute cursor-move select-none"
+                        onPointerDown={(e) => startDrag(e, 'move')}
+                      >
+                        {/* Glowing corners to suggest interactivity */}
+                        <div className="absolute inset-0 border border-white/20 pointer-events-none"></div>
+
+                        {/* Corner Handles */}
+                        {/* Top-Left */}
+                        <div
+                          className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nwse-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'top-left')}
+                        />
+                        {/* Top-Right */}
+                        <div
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nesw-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'top-right')}
+                        />
+                        {/* Bottom-Left */}
+                        <div
+                          className="absolute -bottom-1.5 -left-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nesw-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'bottom-left')}
+                        />
+                        {/* Bottom-Right */}
+                        <div
+                          className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-white dark:bg-slate-800 border-2 border-[#5AA7A7] rounded-full cursor-nwse-resize shadow-md active:scale-125 transition-transform"
+                          onPointerDown={(e) => startDrag(e, 'bottom-right')}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3.5 border-t border-slate-100 dark:border-slate-800/80 pt-4">
+                <button
+                  type="button"
+                  onClick={cancelCrop}
+                  className="px-5 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeCrop}
+                  className="px-6 py-2.5 rounded-full text-xs font-extrabold text-white bg-gradient-to-r from-[#96D7C6] to-[#5AA7A7] hover:brightness-105 shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Confirm Crop (224x224)
+                </button>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Fullscreen AI Scan Loading Page Overlay */}
       <AnimatePresence>
@@ -271,7 +566,7 @@ export default function Dashboard() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* TOP CARD: Dermatology AI Scanner */}
-      <div className="glass-panel rounded-[32px] p-8 md:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <div className="glass-panel rounded-[32px] p-6 md:p-8 lg:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
         
         {/* Left Side Info */}
         <div className="lg:col-span-7 space-y-6">
@@ -474,35 +769,38 @@ export default function Dashboard() {
 
       </div>
 
-      {/* BOTTOM BENTO ROW: Four stats cards */}
+      {/* BOTTOM BENTO ROW: Four stats cards with sparklines */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
+          const sparkData = SPARKLINES[stat.sparkKey] || [];
           return (
-            <div
-              key={idx}
-              className="glass-panel rounded-[32px] p-6 flex flex-col justify-between h-40 border border-white/50 shadow-sm text-left relative overflow-hidden"
-            >
-              {/* Card top row */}
+            <div key={idx} className="glass-panel rounded-[32px] p-5 flex flex-col justify-between h-44 border border-white/50 shadow-sm text-left relative overflow-hidden">
               <div className="flex justify-between items-center w-full">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${stat.bgColor}`}>
                   <Icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
-                
-                {/* Trend pill */}
-                <div className="text-[10px] font-extrabold text-slate-500 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 border border-slate-200/30 dark:border-slate-700 px-2.5 py-0.5 rounded-full shadow-sm font-sans flex items-center justify-center">
+                <div className="text-[10px] font-extrabold text-slate-500 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 border border-slate-200/30 dark:border-slate-700 px-2.5 py-0.5 rounded-full shadow-sm">
                   {stat.trend}
                 </div>
               </div>
-
-              {/* Card text content */}
-              <div className="mt-4">
-                <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">
-                  {stat.label}
-                </span>
-                <span className="text-2xl font-black text-slate-900 dark:text-white mt-1.5 block leading-none">
-                  {stat.value}
-                </span>
+              <div className="mt-2">
+                <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">{stat.label}</span>
+                <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block leading-none">{stat.value}</span>
+              </div>
+              {/* Sparkline */}
+              <div className="absolute bottom-0 left-0 right-0 h-12 opacity-30">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={sparkData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id={`grad-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={stat.sparkColor} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={stat.sparkColor} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="monotone" dataKey="v" stroke={stat.sparkColor} strokeWidth={2} fill={`url(#grad-${idx})`} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
           );

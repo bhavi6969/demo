@@ -24,6 +24,21 @@ const userSchema = new mongoose.Schema({
     default: "user"
   },
 
+  phone: {
+    type: String,
+    default: ""
+  },
+
+  allergies: {
+    type: String,
+    default: ""
+  },
+
+  skinCondition: {
+    type: String,
+    default: ""
+  },
+
   profileImage: {
     type: String
   }

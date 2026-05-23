@@ -1,5 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, AlertTriangle, HelpCircle, MessageSquare } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Send, HelpCircle, MessageSquare, AlertTriangle, Sparkles, RefreshCw, ThumbsUp, ThumbsDown, Scan } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { getBotResponse } from '../utils/chatbotBrain';
 import axios from 'axios';
 
 const SYSTEM_PROMPT = `You are DermaVision AI, a clinical dermatology assistant. You provide structured, evidence-based educational information about skin conditions.
@@ -23,10 +27,10 @@ Rules:
 const INITIAL_MESSAGE = {
   sender: 'ai',
   text: "Welcome to the DermaVision Skin Assistant. I can help explain skin symptoms, review skincare routines, or clarify predicted conditions. What skin queries can I address for you?",
-  time: '10:00 AM'
+  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 };
 
-// Calls Groq API directly from the browser
+// Calls Groq API directly from the browser (bhavi6969's flow)
 async function callGroq(userMessage, conversationHistory) {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
   if (!apiKey) throw new Error('VITE_GROQ_API_KEY is not set in your .env file');
@@ -66,7 +70,7 @@ async function callGroq(userMessage, conversationHistory) {
 // Fire-and-forget backend save
 async function saveToBackend(message) {
   try {
-    await axios.post('http://localhost:5000/api/chat/send', {
+    await axios.post('/api/chat/send', {
       senderId: 'user',
       receiverId: 'ai-assistant',
       message,
@@ -75,197 +79,411 @@ async function saveToBackend(message) {
   } catch (_) {}
 }
 
-// Renders "Label: value" lines with bold labels
+// ── Markdown-lite & Label renderer ────────────────────────────────────────────
 function FormattedMessage({ text }) {
   const lines = text.split('\n');
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1.5 leading-relaxed">
       {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-1" />;
+        
+        // Match "Label: value" format
         const match = line.match(/^([^:]+):\s(.+)$/);
+        let content = line;
+        let prefix = null;
         if (match) {
-          return (
-            <p key={i} className="leading-relaxed">
-              <span className="font-semibold">{match[1]}: </span>
-              <span>{match[2]}</span>
-            </p>
-          );
+          prefix = <span className="font-extrabold">{match[1]}: </span>;
+          content = match[2];
         }
-        return line.trim() === ''
-          ? <div key={i} className="h-1" />
-          : <p key={i} className="leading-relaxed">{line}</p>;
+
+        // Render **bold** markdown
+        const parts = content.split(/\*\*(.*?)\*\*/g);
+        const rendered = parts.map((part, j) =>
+          j % 2 === 1 ? <strong key={j} className="font-extrabold text-[#5AA7A7]">{part}</strong> : part
+        );
+
+        return (
+          <div key={i} className="text-xs">
+            {prefix}
+            {rendered}
+          </div>
+        );
       })}
     </div>
   );
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+const PRESETS = [
+  "What causes acne?", "Best routine for oily skin", "How does retinol work?",
+  "Is eczema contagious?", "Foods that help skin", "How does the AI scan work?",
+  "ABCDE mole assessment", "What is niacinamide?",
+];
+
+const SCAN_TRIGGERS = [
+  'rash', 'spot', 'mole', 'lesion', 'bump', 'patch', 'mark',
+  'growth', 'sore', 'blister', 'lump', 'discoloration', 'discolouration',
+];
+
+const makeWelcome = () => ({
+  id: 0,
+  sender: 'ai',
+  text: INITIAL_MESSAGE.text,
+  time: INITIAL_MESSAGE.time,
+});
+
+const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function Chatbot() {
-  const [messages, setMessages] = useState([INITIAL_MESSAGE]);
+  const navigate = useNavigate();
+  const { chatHistory, sendChatMessage, clearChat } = useApp();
+
+  const [messages, setMessages] = useState(() =>
+    chatHistory && chatHistory.length > 0 ? chatHistory : [makeWelcome()]
+  );
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [reactions, setReactions] = useState({});
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Sync when backend chat history loads
+  useEffect(() => {
+    if (chatHistory && chatHistory.length > 0) {
+      setMessages(chatHistory);
+    }
+  }, [chatHistory]);
+
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typing]);
 
-  const now = () =>
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Autocomplete suggestions
+  const suggestions = useMemo(() => {
+    const q = input.toLowerCase().trim();
+    if (q.length < 2) return [];
+    return PRESETS.filter(p => p.toLowerCase().includes(q) && p.toLowerCase() !== q).slice(0, 3);
+  }, [input]);
 
-  const handleSend = async (presetText) => {
+  const handleSend = useCallback(async (presetText) => {
     const text = (presetText || input).trim();
     if (!text || typing) return;
 
-    const history = messages.slice(1); // exclude initial greeting from API history
-    setMessages((prev) => [...prev, { sender: 'user', text, time: now() }]);
     if (!presetText) setInput('');
+
+    // Optimistically add user message
+    const userMsg = { id: Date.now(), sender: 'user', text, time: getTime() };
+    setMessages(prev => [...prev, userMsg]);
     setTyping(true);
     setError(null);
 
-    try {
-      saveToBackend(text);
-      const reply = await callGroq(text, history);
-      setMessages((prev) => [...prev, { sender: 'ai', text: reply, time: now() }]);
-    } catch (err) {
-      console.error('Groq error:', err);
-      setError(err.message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'ai',
-          text: 'Sorry, I encountered an error. Please check your API key or try again.',
-          time: now()
-        }
-      ]);
-    } finally {
-      setTyping(false);
+    // 1. Try browser direct Groq call if API key is defined (bhavi6969's flow)
+    const clientApiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (clientApiKey) {
+      try {
+        saveToBackend(text);
+        const reply = await callGroq(text, messages.slice(1));
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + 1, sender: 'ai', text: reply, time: getTime() }
+        ]);
+        setTyping(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+        return;
+      } catch (err) {
+        console.error('Groq direct API error:', err);
+        setError(err.message || 'Groq call failed. Falling back to backend.');
+      }
     }
-  };
 
-  const presets = [
-    "Is eczema contagious?",
-    "Explain ABCDE mole assessment criteria",
-    "Post-chemical peel skin care routine",
-    "How does Adapalene manage acne?"
-  ];
+    // 2. Route to backend Express API
+    try {
+      const updated = await sendChatMessage(text);
+      if (updated && updated.length > 0) {
+        setMessages(updated);
+        setTyping(false);
+        setTimeout(() => inputRef.current?.focus(), 50);
+        return;
+      }
+      throw new Error('empty');
+    } catch {
+      // 3. Fallback to client-side rule chatbot brain
+      const delay = 700 + Math.random() * 600;
+      setTimeout(() => {
+        const { reply, followUp } = getBotResponse(text);
+        const showScanCta = SCAN_TRIGGERS.some(kw => text.toLowerCase().includes(kw));
+
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now() + 1, sender: 'ai', text: reply, time: getTime(), showScanCta },
+        ]);
+        setTyping(false);
+
+        if (followUp) {
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              { id: Date.now() + 2, sender: 'ai', text: followUp, time: getTime(), isFollowUp: true },
+            ]);
+          }, 600);
+        }
+
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }, delay);
+    }
+  }, [input, typing, messages, sendChatMessage]);
+
+  const handleReaction = useCallback((msgId, reaction) => {
+    setReactions(prev => ({ ...prev, [msgId]: prev[msgId] === reaction ? null : reaction }));
+  }, []);
+
+  const handleReset = useCallback(async () => {
+    try { await clearChat(); } catch {}
+    setMessages([makeWelcome()]);
+    setInput('');
+    setReactions({});
+    setError(null);
+    setTyping(false);
+  }, [clearChat]);
+
+  const showPresets = messages.length <= 1 && !typing;
 
   return (
-    <div className="flex-grow flex flex-col h-[calc(100vh-65px)] bg-slate-50/30 dark:bg-slate-900/10">
+    <div className="flex-grow flex flex-col h-full min-h-0 bg-slate-50/30 dark:bg-slate-900/10">
 
       {/* Top Banner */}
-      <div className="px-6 py-4 bg-white dark:bg-[#16171d] border-b border-slate-200/50 dark:border-slate-800 flex justify-between items-center shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-mint flex items-center justify-center shadow-md">
+      <div className="px-4 py-3 md:px-6 md:py-4 bg-white dark:bg-[#16171d] border-b border-slate-200/50 dark:border-slate-800 flex justify-between items-center shrink-0 gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-primary to-mint flex items-center justify-center shadow-md shrink-0">
             <MessageSquare className="w-5 h-5 text-white" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-heading font-extrabold text-sm text-slate-950 dark:text-white leading-none">
-              Clinical Chat Assistant
+              Skin AI Assistant
             </h2>
-            <span className="text-[10px] text-slate-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
-              Powered by Groq · LLaMA 3.3
+            <span className="text-[10px] text-slate-400 hidden sm:flex items-center gap-1 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+              Online · Powered by AI · History saved
             </span>
           </div>
         </div>
-        <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded-full font-bold border border-amber-500/20 flex items-center gap-1">
-          <AlertTriangle className="w-3.5 h-3.5" /> For reference only
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full font-bold border border-amber-500/20 hidden sm:flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" /> Reference only
+          </span>
+          <button
+            onClick={handleReset}
+            title="New conversation"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="px-6 py-2 bg-red-500/10 border-b border-red-500/20 text-[10px] text-red-500 flex items-center gap-2 shrink-0">
+        <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-[10px] text-red-500 flex items-center gap-2 shrink-0">
           <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
           <span className="truncate">{error}</span>
         </div>
       )}
 
-      {/* Messages Scroll Area */}
-      <div className="flex-grow p-6 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
+      {/* Messages */}
+      <div className="flex-grow p-4 md:p-6 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-slate-950/20 min-h-0">
         <div className="max-w-3xl mx-auto space-y-4">
+          <AnimatePresence initial={false}>
+            {messages.map((msg, idx) => {
+              const msgId = msg._id || msg.id || idx;
+              return (
+                <motion.div
+                  key={String(msgId)}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  {msg.sender === 'ai' && (
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-primary to-mint flex items-center justify-center shrink-0">
+                        <Sparkles className="w-2.5 h-2.5 text-white" />
+                      </div>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        DermaVision AI
+                      </span>
+                    </div>
+                  )}
 
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-            >
-              <div className={`p-4 rounded-2xl text-xs leading-relaxed max-w-[80%] shadow-sm ${
-                msg.sender === 'user'
-                  ? 'bg-primary text-white rounded-tr-none'
-                  : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700/30'
-              }`}>
-                {msg.sender === 'ai'
-                  ? <FormattedMessage text={msg.text} />
-                  : <p>{msg.text}</p>
-                }
-              </div>
-              <span className="text-[9px] text-slate-400 mt-1 px-1.5">{msg.time}</span>
-            </div>
-          ))}
+                  <div className={`px-4 py-3 rounded-2xl text-xs max-w-[85%] shadow-sm ${
+                    msg.sender === 'user'
+                      ? 'bg-primary text-white rounded-tr-none'
+                      : msg.isFollowUp
+                      ? 'bg-[#c6f0ea]/40 text-slate-700 dark:text-slate-200 rounded-tl-none border border-[#5AA7A7]/20'
+                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-100 dark:border-slate-700/30'
+                  }`}>
+                    {msg.sender === 'ai'
+                      ? <FormattedMessage text={msg.text} />
+                      : msg.text
+                    }
+                  </div>
 
-          {/* Typing Indicator */}
+                  {msg.sender === 'ai' && msg.showScanCta && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.35 }}
+                      onClick={() => navigate('/')}
+                      className="mt-2 flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#96D7C6] to-[#5AA7A7] text-white text-[10px] font-extrabold shadow-md hover:brightness-105 transition-all cursor-pointer"
+                    >
+                      <Scan className="w-3.5 h-3.5" /> Scan your skin now
+                    </motion.button>
+                  )}
+
+                  {msg.sender === 'ai' && !msg.isFollowUp && (
+                    <div className="flex items-center gap-1.5 mt-1.5 px-1">
+                      <span className="text-[9px] text-slate-400">{msg.time}</span>
+                      <div className="flex gap-1 ml-1">
+                        <button
+                          onClick={() => handleReaction(msgId, 'up')}
+                          title="Helpful"
+                          className={`p-1 rounded-full transition-all cursor-pointer ${
+                            reactions[msgId] === 'up'
+                              ? 'bg-emerald-100 text-emerald-600'
+                              : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
+                          }`}
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => handleReaction(msgId, 'down')}
+                          title="Not helpful"
+                          className={`p-1 rounded-full transition-all cursor-pointer ${
+                            reactions[msgId] === 'down'
+                              ? 'bg-rose-100 text-rose-500'
+                              : 'text-slate-300 hover:text-rose-400 hover:bg-rose-50'
+                          }`}
+                        >
+                          <ThumbsDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {msg.sender === 'user' && (
+                    <span className="text-[9px] text-slate-400 mt-1 px-1.5">{msg.time}</span>
+                  )}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+
           {typing && (
-            <div className="flex flex-col items-start">
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800 rounded-tl-none border border-slate-100 dark:border-slate-700/30 flex items-center gap-1.5">
-                <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-start"
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-primary to-mint flex items-center justify-center">
+                  <Sparkles className="w-2.5 h-2.5 text-white" />
+                </div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  DermaVision AI
+                </span>
               </div>
-            </div>
+              <div className="px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 rounded-tl-none border border-slate-100 dark:border-slate-700/30 flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-[#5AA7A7] rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-[#5AA7A7] rounded-full animate-bounce [animation-delay:0.15s]" />
+                <span className="w-2 h-2 bg-[#5AA7A7] rounded-full animate-bounce [animation-delay:0.3s]" />
+              </div>
+            </motion.div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Bottom Input Area */}
-      <div className="p-4 bg-white dark:bg-[#16171d] border-t border-slate-200/50 dark:border-slate-800 shrink-0">
-        <div className="max-w-3xl mx-auto space-y-4">
-
-          {/* Preset Chips — only shown before any user message */}
-          {messages.length === 1 && !typing && (
-            <div className="space-y-2">
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                <HelpCircle className="w-3.5 h-3.5 text-slate-400" /> Common Inquiries
+      {/* Preset chips */}
+      <AnimatePresence>
+        {showPresets && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="px-4 md:px-6 py-3 bg-white/80 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 shrink-0"
+          >
+            <div className="max-w-3xl mx-auto">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1 mb-2">
+                <HelpCircle className="w-3.5 h-3.5" /> Common Inquiries
               </span>
               <div className="flex flex-wrap gap-2">
-                {presets.map((pr, idx) => (
+                {PRESETS.map((pr, i) => (
                   <button
-                    key={idx}
+                    key={i}
                     onClick={() => handleSend(pr)}
-                    className="text-[10px] text-left text-primary hover:text-white bg-primary/10 hover:bg-primary px-3 py-2 rounded-xl font-bold transition-all cursor-pointer"
+                    className="text-[10px] text-primary hover:text-white bg-primary/10 hover:bg-primary border border-primary/20 hover:border-primary px-3 py-1.5 rounded-full font-bold transition-all cursor-pointer"
                   >
                     {pr}
                   </button>
                 ))}
               </div>
             </div>
-          )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* Input Form */}
+      {/* Input area */}
+      <div className="p-3 md:p-4 bg-white dark:bg-[#16171d] border-t border-slate-200/50 dark:border-slate-800 shrink-0">
+        <div className="max-w-3xl mx-auto space-y-2">
+          <AnimatePresence>
+            {suggestions.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-wrap gap-1.5"
+              >
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(s)}
+                    className="text-[10px] text-[#5AA7A7] bg-[#c6f0ea]/30 border border-[#5AA7A7]/20 hover:bg-[#5AA7A7] hover:text-white px-3 py-1 rounded-full font-bold transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Sparkles className="w-2.5 h-2.5" /> {s}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <form
-            onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-            className="flex items-center gap-3"
+            onSubmit={e => { e.preventDefault(); handleSend(); }}
+            className="flex items-center gap-2.5"
           >
             <input
               ref={inputRef}
               type="text"
-              placeholder="Query skin conditions, skincare routines, or symptom logs..."
+              placeholder="Ask about any skin condition, ingredient, or routine…"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={typing}
-              className="flex-1 py-3 px-4 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white disabled:opacity-50"
+              onChange={e => setInput(e.target.value)}
+              className="flex-1 py-3 px-4 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
             />
             <button
               type="submit"
-              disabled={typing || !input.trim()}
-              className="p-3.5 rounded-xl bg-primary hover:brightness-105 text-white shadow-md shadow-primary/20 transition-all flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!input.trim() || typing}
+              className="p-3.5 rounded-xl bg-primary hover:brightness-105 text-white shadow-md shadow-primary/20 transition-all flex items-center justify-center disabled:opacity-40 cursor-pointer"
             >
               <Send className="w-4 h-4" />
             </button>
           </form>
+
+          <p className="text-[9px] text-slate-400 text-center font-medium">
+            AI responses are for informational purposes only — not a substitute for professional medical advice.
+          </p>
         </div>
       </div>
 

@@ -1,9 +1,10 @@
-import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
+import { Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
 import ChatbotWidget from './components/ChatbotWidget';
+import { useApp } from './context/AppContext';
 
 // Import Pages
 import Home from './pages/Home';
@@ -16,6 +17,9 @@ import Doctors from './pages/Doctors';
 import Chatbot from './pages/Chatbot';
 import Settings from './pages/Settings';
 import Encyclopedia from './pages/Encyclopedia';
+import FullSkinAnalysis from './pages/FullSkinAnalysis';
+import LesionTracker from './pages/LesionTracker';
+import IngredientScanner from './pages/IngredientScanner';
 
 // Layout for general public landing, login, and registration screens
 function PublicLayout() {
@@ -30,20 +34,38 @@ function PublicLayout() {
   );
 }
 
+
+function ProtectedRoute({ children }) {
+  const { token, loading } = useApp();
+  if (loading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-white dark:bg-[#16171d]">
+        <div className="w-10 h-10 border-4 border-[#5AA7A7] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
 // Layout for clinical authenticated dashboard sections
 function DashboardLayout() {
   return (
-    <div className="flex h-screen w-screen p-5 gap-5 overflow-hidden transition-colors duration-300">
-      {/* Sidebar on the left */}
+    <div className="flex h-screen w-screen lg:p-5 lg:gap-5 overflow-hidden transition-colors duration-300">
+      {/* Sidebar on the left — desktop only */}
       <Sidebar />
       
       {/* Main content viewport on the right */}
-      <div className="flex-1 flex flex-col gap-5 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col lg:gap-5 h-full overflow-hidden min-w-0">
         {/* Top-bar Navbar */}
-        <Navbar />
+        <div className="shrink-0 p-3 lg:p-0">
+          <Navbar />
+        </div>
         
         {/* Scrollable page content */}
-        <main className="flex-1 overflow-y-auto pr-1">
+        <main className="flex-1 overflow-y-auto px-3 pb-3 lg:px-0 lg:pb-0 lg:pr-1">
           <Outlet />
         </main>
       </div>
@@ -82,7 +104,7 @@ export default function App() {
         </Route>
 
         {/* Dashboard Routes */}
-        <Route element={<DashboardLayout />}>
+        <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route path="/" element={<PageWrapper><Home /></PageWrapper>} />
           <Route path="/dashboard" element={<PageWrapper><Dashboard /></PageWrapper>} />
           <Route path="/detect" element={<PageWrapper><Detection /></PageWrapper>} />
@@ -90,6 +112,9 @@ export default function App() {
           <Route path="/doctors" element={<PageWrapper><Doctors /></PageWrapper>} />
           <Route path="/chatbot" element={<PageWrapper><Chatbot /></PageWrapper>} />
           <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
+          <Route path="/full-analysis" element={<PageWrapper><FullSkinAnalysis /></PageWrapper>} />
+          <Route path="/tracker" element={<PageWrapper><LesionTracker /></PageWrapper>} />
+          <Route path="/scanner" element={<PageWrapper><IngredientScanner /></PageWrapper>} />
         </Route>
 
       </Routes>
