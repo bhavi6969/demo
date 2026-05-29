@@ -41,6 +41,16 @@ const userSchema = new mongoose.Schema({
 
   profileImage: {
     type: String
+  },
+
+  notifEmail: {
+    type: Boolean,
+    default: true
+  },
+
+  notifPush: {
+    type: Boolean,
+    default: true
   }
 
 }, {

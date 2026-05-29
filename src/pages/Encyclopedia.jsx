@@ -16,7 +16,12 @@ function ConditionModal({ item, onClose }) {
 
           {/* Hero image */}
           <div className="relative h-48 bg-slate-100 rounded-t-[32px] overflow-hidden">
-            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+            <img 
+              src={item.imageUrl} 
+              alt={item.name} 
+              className="w-full h-full object-cover" 
+              onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/e2e8f0/475569?text=Image+Unavailable'; }}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute bottom-4 left-5 right-12">
               <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${item.severityColor} bg-white/90 mb-1 inline-block`}>{item.severity}</span>
@@ -200,7 +205,13 @@ export default function Encyclopedia() {
         {filteredDiseases.map((item) => (
           <div key={item.id} className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-200 flex flex-col group">
             <div className="h-48 bg-slate-50 relative overflow-hidden">
-              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+              <img 
+                src={item.imageUrl} 
+                alt={item.name} 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                loading="lazy" 
+                onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/600x400/e2e8f0/475569?text=Image+Unavailable'; }}
+              />
               <div className="absolute top-3 right-3 bg-[#5AA7A7] text-white text-[10px] font-bold px-2 py-1 rounded-md shadow-md">{item.severity}</div>
             </div>
             <div className="p-5 flex flex-col flex-1">

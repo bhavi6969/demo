@@ -48,7 +48,9 @@ exports.registerUser = async (req, res) => {
         phone: user.phone,
         allergies: user.allergies,
         skinCondition: user.skinCondition,
-        role: user.role
+        role: user.role,
+        notifEmail: user.notifEmail,
+        notifPush: user.notifPush
       }
     });
 
@@ -100,7 +102,9 @@ exports.loginUser = async (req, res) => {
         phone: user.phone,
         allergies: user.allergies,
         skinCondition: user.skinCondition,
-        role: user.role
+        role: user.role,
+        notifEmail: user.notifEmail,
+        notifPush: user.notifPush
       }
     });
 
@@ -130,7 +134,9 @@ exports.getMe = async (req, res) => {
         phone: user.phone,
         allergies: user.allergies,
         skinCondition: user.skinCondition,
-        role: user.role
+        role: user.role,
+        notifEmail: user.notifEmail,
+        notifPush: user.notifPush
       }
     });
   } catch (error) {
@@ -143,7 +149,7 @@ exports.getMe = async (req, res) => {
 // UPDATE USER PROFILE
 exports.updateProfile = async (req, res) => {
   try {
-    const { name, email, phone, allergies, skinCondition, avatar } = req.body;
+    const { name, email, phone, allergies, skinCondition, avatar, notifEmail, notifPush } = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({
@@ -165,6 +171,8 @@ exports.updateProfile = async (req, res) => {
     if (allergies !== undefined) user.allergies = allergies;
     if (skinCondition !== undefined) user.skinCondition = skinCondition;
     if (avatar !== undefined) user.profileImage = avatar;
+    if (notifEmail !== undefined) user.notifEmail = notifEmail;
+    if (notifPush !== undefined) user.notifPush = notifPush;
 
     await user.save();
 
@@ -179,7 +187,9 @@ exports.updateProfile = async (req, res) => {
         allergies: user.allergies,
         skinCondition: user.skinCondition,
         role: user.role,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        notifEmail: user.notifEmail,
+        notifPush: user.notifPush
       }
     });
   } catch (error) {

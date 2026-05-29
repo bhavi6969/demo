@@ -17,8 +17,8 @@ export default function Settings() {
   const [skinCondition, setSkinCondition] = useState(user?.skinCondition || '');
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar || null);
   
-  const [notifEmail, setNotifEmail] = useState(true);
-  const [notifPush, setNotifPush] = useState(true);
+  const [notifEmail, setNotifEmail] = useState(user?.notifEmail ?? true);
+  const [notifPush, setNotifPush] = useState(user?.notifPush ?? true);
   const [biometrics, setBiometrics] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -37,7 +37,7 @@ export default function Settings() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await updateProfile({ name, email, phone, allergies, skinCondition, avatar: avatarPreview });
+      await updateProfile({ name, email, phone, allergies, skinCondition, avatar: avatarPreview, notifEmail, notifPush });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err) {
@@ -178,19 +178,6 @@ export default function Settings() {
             <div className="space-y-4 text-xs">
               <div className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
                 <div>
-                  <h5 className="font-bold text-slate-800 dark:text-white">Enable Biometric Scan Simulation</h5>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Enforces scanning verification before accessing history reports</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={biometrics}
-                  onChange={(e) => setBiometrics(e.target.checked)}
-                  className="accent-primary w-4.5 h-4.5 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="flex justify-between items-center p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/50">
-                <div>
                   <h5 className="font-bold text-slate-800 dark:text-white text-rose-500">Purge Clinical Diagnostic logs</h5>
                   <p className="text-[10px] text-slate-400 mt-0.5">Permanently deletes all historical image logs from the system</p>
                 </div>
@@ -204,29 +191,6 @@ export default function Settings() {
 
         {/* Configurations Sidebar */}
         <div className="space-y-6">
-          {/* General Configs */}
-          <div className="glass-panel rounded-3xl p-6 border border-slate-200/50 dark:border-white/5 shadow-xl space-y-6">
-            <h3 className="font-heading font-bold text-sm text-slate-950 dark:text-white">Visual Preferences</h3>
-            
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-bold text-slate-600 dark:text-slate-300">Application Theme</span>
-              <button
-                onClick={toggleTheme}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                {theme === 'dark' ? (
-                  <>
-                    <Sun className="w-4 h-4 text-sand" /> Light Mode
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-4 h-4" /> Dark Mode
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
           {/* Communication Configs */}
           <div className="glass-panel rounded-3xl p-6 border border-slate-200/50 dark:border-white/5 shadow-xl space-y-5">
             <h3 className="font-heading font-bold text-sm text-slate-950 dark:text-white flex items-center gap-2">

@@ -70,7 +70,7 @@ export default function Navbar() {
 
         {/* Full Skin Analysis Link — hidden on small screens */}
         <button
-          onClick={() => navigate('/full-analysis')}
+          onClick={() => navigate('/')}
           className="hidden lg:flex items-center gap-1.5 px-3 py-2 rounded-full bg-gradient-to-r from-[#96D7C6] to-[#5AA7A7] text-white text-xs font-bold shadow hover:brightness-105 transition-all"
         >
           <Sparkles className="w-3.5 h-3.5 fill-white text-transparent" />
@@ -171,7 +171,7 @@ export default function Navbar() {
         <div className="lg:hidden absolute top-[calc(100%+8px)] left-0 right-0 glass-panel border border-white/40 shadow-xl rounded-[24px] px-6 py-4 space-y-1 z-40 animate-in slide-in-from-top duration-300">
           <div className="flex flex-col">
             <div onClick={() => { navigate('/'); setMobileMenuOpen(false); }} className="py-2.5 text-xs font-bold text-slate-700 cursor-pointer border-b border-slate-100/60">Home / Analysis</div>
-            <div onClick={() => { navigate('/full-analysis'); setMobileMenuOpen(false); }} className="py-2.5 text-xs font-bold text-[#5AA7A7] cursor-pointer flex items-center gap-1.5 border-b border-slate-100/60">
+            <div onClick={() => { navigate('/'); setMobileMenuOpen(false); }} className="py-2.5 text-xs font-bold text-[#5AA7A7] cursor-pointer flex items-center gap-1.5 border-b border-slate-100/60">
               <Sparkles className="w-3.5 h-3.5 fill-[#5AA7A7] text-transparent" /> Full Skin Analysis
             </div>
             <div onClick={() => { navigate('/tracker'); setMobileMenuOpen(false); }} className="py-2.5 text-xs font-bold text-slate-700 cursor-pointer border-b border-slate-100/60">Lesion Tracker</div>

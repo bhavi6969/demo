@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp, SKIN_DISEASES } from '../context/AppContext';
-import { ArrowLeft, Share2, Download, AlertCircle, Shield, Sparkles, Home, Pill, Stethoscope, CheckCircle, Droplet, Sun, Flame, ImageDown, Check } from 'lucide-react';
+import { ArrowLeft, Share2, Download, AlertCircle, Shield, Sparkles, Home, Pill, Stethoscope, CheckCircle, Droplet, Sun, Flame, ImageDown, Check, User } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 export default function Result() {
   const { currentScan, scans, user } = useApp();
@@ -9,7 +10,7 @@ export default function Result() {
   const reportRef = useRef(null);
   const [sharing, setSharing] = useState(false);
   const [shareDone, setShareDone] = useState(false);
-
+  const [showHeatmap, setShowHeatmap] = useState(false);
   // Retrieve current scan or latest history item
   const activeScan = currentScan || scans[0] || {
     id: 'scan-102',
@@ -26,7 +27,39 @@ export default function Result() {
   // Find clinical metadata for the disease, fallback to eczema
   const diseaseInfo = SKIN_DISEASES[activeScan.diseaseId] || SKIN_DISEASES.eczema;
 
-  const handlePrint = () => { window.print(); };
+  const handlePrint = async () => {
+    try {
+      const element = document.getElementById('pdf-report-container');
+      if (!element) { window.print(); return; }
+      
+      // Momentarily make visible for html2canvas
+      element.classList.remove('hidden');
+      element.classList.remove('print:block');
+      
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+      
+      element.classList.add('hidden');
+      element.classList.add('print:block');
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'pt',
+        format: 'a4'
+      });
+
+      // Calculate width and height to fit A4
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Dermavision-Report-${activeScan.id}.pdf`);
+    } catch (err) {
+      console.error('PDF error:', err);
+      window.print(); // fallback
+    }
+  };
 
   const handleShare = async () => {
     setSharing(true);
@@ -131,10 +164,20 @@ export default function Result() {
               </span>
 
               <img
-                src={activeScan.imageUrl}
+                src={showHeatmap && activeScan.heatmapImage ? activeScan.heatmapImage : activeScan.imageUrl}
                 alt={activeScan.diseaseName}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-all duration-300"
               />
+
+              {activeScan.heatmapImage && (
+                <button
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  className="absolute top-4 right-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-[10px] font-bold shadow-lg hover:bg-slate-900 transition-colors cursor-pointer"
+                >
+                  <Flame className={`w-3.5 h-3.5 ${showHeatmap ? 'text-emerald-400' : 'text-rose-400'}`} /> 
+                  {showHeatmap ? 'View Original' : 'View AI Heatmap'}
+                </button>
+              )}
             </div>
 
             {/* Resolution, Model, Time metadata pills */}
@@ -462,8 +505,8 @@ export default function Result() {
 
       </div>
 
-      {/* Print Only Medical Report Document: Visible only when printing */}
-      <div className="hidden print:block w-full max-w-[800px] mx-auto p-4 text-slate-900 bg-white leading-relaxed font-sans text-xs">
+      {/* Print Only Medical Report Document: Visible only when printing or generating PDF */}
+      <div id="pdf-report-container" className="hidden print:block w-full max-w-[800px] mx-auto p-8 text-slate-900 bg-white leading-relaxed font-sans text-xs">
         
         {/* Letterhead */}
         <div className="flex justify-between items-center border-b-2 border-slate-800 pb-4 mb-6">

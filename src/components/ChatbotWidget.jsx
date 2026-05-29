@@ -37,7 +37,6 @@ const SUGGESTED_PROMPTS = [
 // Calls Groq API directly from the browser (free, high limits)
 async function callGroq(userMessage, conversationHistory) {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY is not set in your .env file');
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
@@ -87,29 +86,36 @@ async function saveToBackend(message) {
 function FormattedMessage({ text }) {
   const lines = text.split('\n');
   return (
-    <div className="space-y-1 leading-relaxed">
+    <div className="space-y-2 leading-relaxed">
       {lines.map((line, i) => {
-        if (!line.trim()) return <div key={i} className="h-0.5" />;
+        if (!line.trim()) return <div key={i} className="h-1" />;
+        
+        // Handle unordered lists
+        const isUList = line.trim().match(/^[-*]\s+(.+)/);
+        // Handle ordered lists
+        const isOList = line.trim().match(/^(\d+\.)\s+(.+)/);
 
-        // Match "Label: value" format
-        const match = line.match(/^([^:]+):\s(.+)$/);
         let content = line;
-        let prefix = null;
-        if (match) {
-          prefix = <span className="font-semibold">{match[1]}: </span>;
-          content = match[2];
+        let bullet = null;
+
+        if (isUList) {
+          content = isUList[1];
+          bullet = <span className="text-[#5AA7A7] mr-2 mt-[-1px] text-lg leading-none">•</span>;
+        } else if (isOList) {
+          content = isOList[2];
+          bullet = <span className="text-[#5AA7A7] font-extrabold mr-1.5">{isOList[1]}</span>;
         }
 
         // Render **bold** markdown
         const parts = content.split(/\*\*(.*?)\*\*/g);
-        const rendered = parts.map((p, j) =>
-          j % 2 === 1 ? <strong key={j}>{p}</strong> : p
+        const rendered = parts.map((part, j) =>
+          j % 2 === 1 ? <strong key={j} className="font-extrabold text-slate-800 dark:text-white bg-[#5AA7A7]/10 px-1 py-0.5 rounded-md">{part}</strong> : part
         );
 
         return (
-          <div key={i}>
-            {prefix}
-            {rendered}
+          <div key={i} className={`text-[11px] text-slate-600 dark:text-slate-300 ${isUList || isOList ? 'flex items-start ml-2 mb-1' : ''}`}>
+            {bullet}
+            <div className={isUList || isOList ? 'flex-1' : ''}>{rendered}</div>
           </div>
         );
       })}
@@ -147,33 +153,34 @@ export default function ChatbotWidget() {
     setIsTyping(true);
     setError(null);
 
-    // 1. Try browser direct Groq call if API key is defined (bhavi6969's flow)
-    const clientApiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (clientApiKey) {
-      try {
-        saveToBackend(text);
-        const reply = await callGroq(text, messages.slice(1));
-        setMessages((prev) => [...prev, { sender: 'ai', text: reply, time: now }]);
-        setIsTyping(false);
-        return;
-      } catch (err) {
-        console.error('Groq direct API error in widget:', err);
-        setError(err.message || 'Groq call failed. Falling back.');
+    try {
+      const response = await axios.post('/api/chat/send', {
+        senderId: 'user',
+        receiverId: 'ai-assistant',
+        message: text,
+        chatType: 'ai'
+      });
+      
+      const { messages: updatedMessages } = response.data;
+      if (updatedMessages && updatedMessages.length > 0) {
+        const lastMsg = updatedMessages[updatedMessages.length - 1];
+        setMessages(prev => [...prev, { sender: 'ai', text: lastMsg.text, time: now }]);
+        
+        // Check for follow up message (second to last message if both were added)
+        if (updatedMessages.length >= 2) {
+          const secondLast = updatedMessages[updatedMessages.length - 2];
+          if (secondLast.isFollowUp || (lastMsg.isFollowUp)) {
+            // this is an edge case, we just pull the history
+            setMessages(updatedMessages);
+          }
+        }
       }
-    }
-
-    // 2. Fallback to client-side rule chatbot brain
-    const delay = 700 + Math.random() * 600;
-    setTimeout(() => {
-      const { reply, followUp } = getBotResponse(text);
-      setMessages(prev => [...prev, { sender: 'ai', text: reply, time: now }]);
+    } catch (err) {
+      console.error('Chat API error:', err);
+      setError(`API Error: ${err.message}`);
+    } finally {
       setIsTyping(false);
-      if (followUp) {
-        setTimeout(() => {
-          setMessages(prev => [...prev, { sender: 'ai', text: followUp, time: now, isFollowUp: true }]);
-        }, 500);
-      }
-    }, delay);
+    }
   };
 
   const handleReset = () => {

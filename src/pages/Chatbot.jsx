@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Send, HelpCircle, MessageSquare, AlertTriangle, Sparkles, RefreshCw, ThumbsUp, ThumbsDown, Scan } from 'lucide-react';
+import { Send, HelpCircle, MessageSquare, AlertTriangle, Sparkles, RefreshCw, ThumbsUp, ThumbsDown, Scan, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { SKIN_DISEASES } from '../context/skinConditionEncyclopedia';
 import { getBotResponse } from '../utils/chatbotBrain';
 import axios from 'axios';
 
@@ -22,7 +23,11 @@ Rules:
 - If the query is unclear, ask for more detail about symptoms, location, and duration.
 - Never diagnose. Always recommend professional evaluation for serious concerns.
 - Keep responses concise and clinically accurate.
-- Always end medical information with the disclaimer above.`;
+- Always end medical information with the disclaimer above.
+
+KNOWLEDGE BASE:
+Below is the strict proprietary medical knowledge base you MUST use to answer user queries. Do not hallucinate outside of this data:
+`;
 
 const INITIAL_MESSAGE = {
   sender: 'ai',
@@ -33,10 +38,12 @@ const INITIAL_MESSAGE = {
 // Calls Groq API directly from the browser (bhavi6969's flow)
 async function callGroq(userMessage, conversationHistory) {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
-  if (!apiKey) throw new Error('VITE_GROQ_API_KEY is not set in your .env file');
+
+  // Build the dynamic RAG system prompt
+  const ragSystemPrompt = SYSTEM_PROMPT + JSON.stringify(SKIN_DISEASES, null, 2);
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: ragSystemPrompt },
     ...conversationHistory.map((m) => ({
       role: m.sender === 'user' ? 'user' : 'assistant',
       content: m.text
@@ -83,29 +90,36 @@ async function saveToBackend(message) {
 function FormattedMessage({ text }) {
   const lines = text.split('\n');
   return (
-    <div className="space-y-1.5 leading-relaxed">
+    <div className="space-y-2 leading-relaxed">
       {lines.map((line, i) => {
         if (!line.trim()) return <div key={i} className="h-1" />;
         
-        // Match "Label: value" format
-        const match = line.match(/^([^:]+):\s(.+)$/);
+        // Handle unordered lists
+        const isUList = line.trim().match(/^[-*]\s+(.+)/);
+        // Handle ordered lists
+        const isOList = line.trim().match(/^(\d+\.)\s+(.+)/);
+
         let content = line;
-        let prefix = null;
-        if (match) {
-          prefix = <span className="font-extrabold">{match[1]}: </span>;
-          content = match[2];
+        let bullet = null;
+
+        if (isUList) {
+          content = isUList[1];
+          bullet = <span className="text-[#5AA7A7] mr-2 mt-[-1px] text-lg leading-none">•</span>;
+        } else if (isOList) {
+          content = isOList[2];
+          bullet = <span className="text-[#5AA7A7] font-extrabold mr-1.5">{isOList[1]}</span>;
         }
 
         // Render **bold** markdown
         const parts = content.split(/\*\*(.*?)\*\*/g);
         const rendered = parts.map((part, j) =>
-          j % 2 === 1 ? <strong key={j} className="font-extrabold text-[#5AA7A7]">{part}</strong> : part
+          j % 2 === 1 ? <strong key={j} className="font-extrabold text-slate-800 dark:text-white bg-[#5AA7A7]/10 px-1 py-0.5 rounded-md">{part}</strong> : part
         );
 
         return (
-          <div key={i} className="text-xs">
-            {prefix}
-            {rendered}
+          <div key={i} className={`text-xs text-slate-600 dark:text-slate-300 ${isUList || isOList ? 'flex items-start ml-2 mb-1' : ''}`}>
+            {bullet}
+            <div className={isUList || isOList ? 'flex-1' : ''}>{rendered}</div>
           </div>
         );
       })}
@@ -139,6 +153,8 @@ export default function Chatbot() {
   const navigate = useNavigate();
   const { chatHistory, sendChatMessage, clearChat } = useApp();
 
+  const [isListening, setIsListening] = useState(false);
+
   const [messages, setMessages] = useState(() =>
     chatHistory && chatHistory.length > 0 ? chatHistory : [makeWelcome()]
   );
@@ -148,6 +164,48 @@ export default function Chatbot() {
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    // Initialize Speech Recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setInput((prev) => prev + (prev ? ' ' : '') + transcript);
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        console.error('Speech recognition error', event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      try {
+        recognitionRef.current?.start();
+      } catch (err) {
+        console.error('Error starting speech recognition:', err);
+      }
+    }
+  };
 
   // Sync when backend chat history loads
   useEffect(() => {
@@ -177,29 +235,9 @@ export default function Chatbot() {
     // Optimistically add user message
     const userMsg = { id: Date.now(), sender: 'user', text, time: getTime() };
     setMessages(prev => [...prev, userMsg]);
+    // Route to backend Express API
     setTyping(true);
     setError(null);
-
-    // 1. Try browser direct Groq call if API key is defined (bhavi6969's flow)
-    const clientApiKey = import.meta.env.VITE_GROQ_API_KEY;
-    if (clientApiKey) {
-      try {
-        saveToBackend(text);
-        const reply = await callGroq(text, messages.slice(1));
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now() + 1, sender: 'ai', text: reply, time: getTime() }
-        ]);
-        setTyping(false);
-        setTimeout(() => inputRef.current?.focus(), 50);
-        return;
-      } catch (err) {
-        console.error('Groq direct API error:', err);
-        setError(err.message || 'Groq call failed. Falling back to backend.');
-      }
-    }
-
-    // 2. Route to backend Express API
     try {
       const updated = await sendChatMessage(text);
       if (updated && updated.length > 0) {
@@ -472,6 +510,17 @@ export default function Chatbot() {
               onChange={e => setInput(e.target.value)}
               className="flex-1 py-3 px-4 rounded-xl glass-input text-xs font-medium text-slate-800 dark:text-white"
             />
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`w-11 h-11 flex items-center justify-center rounded-xl transition-all shadow-sm shrink-0 cursor-pointer ${
+                isListening 
+                  ? 'bg-red-50 text-red-500 border border-red-200 animate-pulse' 
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-400 border border-slate-200/60 dark:border-slate-800 hover:text-primary hover:bg-primary/5'
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+            </button>
             <button
               type="submit"
               disabled={!input.trim() || typing}

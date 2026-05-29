@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { ArrowRight, Upload, Camera, Play, CheckCircle2, ShieldCheck, Sparkles, X, Zap, HeartPulse, Brain, Loader2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import BodyMap from '../components/BodyMap';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { runAIScanSimulation, setCurrentScan } = useApp();
+  const { runAIScanSimulation, setCurrentScan, saveSkinAnalysis } = useApp();
 
   // Dermatology AI scan state
   const [image, setImage] = useState(null);
@@ -23,6 +24,7 @@ export default function Home() {
   const [displaySize, setDisplaySize] = useState(null);
   const [dragMode, setDragMode] = useState(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, box: null });
+  const [selectedBodyPart, setSelectedBodyPart] = useState('Head / Face');
 
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -303,6 +305,9 @@ export default function Home() {
       const result = await runAIScanSimulation(image, (step) => {
         setScanStep(step);
       });
+      // Attach the selected body part to the result
+      result.bodyPart = selectedBodyPart;
+      await saveSkinAnalysis(result);
       setCurrentScan(result);
       navigate('/result');
     } catch (error) {
@@ -346,10 +351,10 @@ export default function Home() {
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
                   <h3 className="font-heading font-extrabold text-lg md:text-xl text-slate-800 dark:text-white">
-                    Crop Lesion Region
+                    Lesion Details
                   </h3>
                   <p className="text-xs text-slate-400 font-medium">
-                    Drag the selection area over the lesion. Corner handles resize the box.
+                    Crop the image and specify the location on the body.
                   </p>
                 </div>
                 <button
@@ -360,9 +365,17 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Workspace (Image & Crop box) */}
-              <div className="flex-1 min-h-[30vh] flex items-center justify-center bg-slate-100 dark:bg-slate-950/50 rounded-2xl p-4 overflow-hidden relative border border-slate-200/50 dark:border-slate-800">
-                <div className="relative inline-block select-none mx-auto max-h-[50vh] max-w-full">
+              {/* Workspace Layout: Flex container for Body Map and Cropper */}
+              <div className="flex flex-col md:flex-row gap-6 flex-1 min-h-[30vh]">
+                
+                {/* Left: Body Map */}
+                <div className="w-full md:w-1/3 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800">
+                  <BodyMap selectedPart={selectedBodyPart} onSelectPart={setSelectedBodyPart} />
+                </div>
+
+                {/* Right: Image Cropper */}
+                <div className="w-full md:w-2/3 flex items-center justify-center bg-slate-100 dark:bg-slate-950/50 rounded-2xl p-4 overflow-hidden relative border border-slate-200/50 dark:border-slate-800">
+                  <div className="relative inline-block select-none mx-auto max-h-[50vh] max-w-full">
                   <img
                     ref={imageRef}
                     src={rawImage}
@@ -437,6 +450,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
+              </div>
               </div>
 
               {/* Action Buttons */}
@@ -550,7 +564,7 @@ export default function Home() {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* CARD 1: Calmer way to understand skin health */}
-      <div className="glass-panel rounded-[32px] p-6 md:p-8 lg:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <div id="home-hero-scanner" className="glass-panel rounded-[32px] p-6 md:p-8 lg:p-12 border border-white/50 shadow-sm relative overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         {/* Decorative subtle background glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#c6f0ea]/20 rounded-full blur-3xl -z-10 animate-float-slow"></div>
 
@@ -888,7 +902,102 @@ export default function Home() {
           </div>
 
         </div>
+      </div>
 
+      {/* NEW SECTION 1: How it Works Timeline */}
+      <div className="mt-16 max-w-5xl mx-auto space-y-12">
+        <div className="text-center space-y-3">
+          <h2 className="font-heading font-extrabold text-2xl md:text-3xl text-slate-900 dark:text-white">
+            How <span className="text-[#5AA7A7]">DermaVision</span> Works
+          </h2>
+          <p className="text-xs md:text-sm text-slate-500 max-w-lg mx-auto">
+            From scanning to personalized treatments in 3 simple steps.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+          {/* Connector Line (Desktop only) */}
+          <div className="hidden md:block absolute top-1/2 left-[10%] right-[10%] h-0.5 bg-gradient-to-r from-transparent via-[#5AA7A7]/30 to-transparent -translate-y-1/2 z-0"></div>
+
+          {/* Steps */}
+          {[
+            {
+              title: "1. Snap & Upload",
+              desc: "Take a clear photo of your skin concern using our secure AI scanner.",
+              icon: Camera,
+              delay: 0.1
+            },
+            {
+              title: "2. AI Analysis",
+              desc: "Our neural networks detect 22+ conditions in under 3 seconds.",
+              icon: Brain,
+              delay: 0.2
+            },
+            {
+              title: "3. Treatment Plan",
+              desc: "Get personalized product recommendations and connect with doctors.",
+              icon: ShieldCheck,
+              delay: 0.3
+            }
+          ].map((step, idx) => {
+            const Icon = step.icon;
+            return (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-50px" }}
+                transition={{ delay: step.delay, duration: 0.5 }}
+                className="glass-panel relative z-10 rounded-[32px] p-6 md:p-8 border border-white/40 shadow-sm flex flex-col items-center text-center space-y-4 hover:-translate-y-2 transition-transform duration-300"
+              >
+                <div className="w-16 h-16 rounded-full bg-white dark:bg-slate-800 border border-[#5AA7A7]/20 flex items-center justify-center shadow-lg text-[#5AA7A7]">
+                  <Icon className="w-7 h-7" />
+                </div>
+                <h3 className="font-heading font-extrabold text-lg text-slate-900 dark:text-white">
+                  {step.title}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  {step.desc}
+                </p>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* NEW SECTION 2: 3D Body Map Selector */}
+      <div className="mt-16 max-w-5xl mx-auto glass-panel rounded-[40px] p-8 md:p-12 border border-[#5AA7A7]/20 shadow-md relative overflow-hidden flex flex-col md:flex-row items-center gap-10">
+        <div className="absolute top-0 left-0 w-64 h-64 bg-[#BAC94A]/10 rounded-full blur-3xl -z-10 animate-float-slow"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-[#5AA7A7]/10 rounded-full blur-3xl -z-10 animate-float-slow" style={{ animationDelay: '2s' }}></div>
+        
+        <div className="flex-1 space-y-6 text-center md:text-left">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#5AA7A7]/10 text-[10px] font-bold text-[#5AA7A7]">
+            <HeartPulse className="w-3.5 h-3.5 fill-[#5AA7A7] text-transparent" /> Interactive Diagnosis
+          </div>
+          <h2 className="font-heading font-extrabold text-2xl md:text-4xl text-slate-900 dark:text-white leading-tight">
+            Where is the <span className="text-[#BAC94A]">skin concern</span> located?
+          </h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Select the affected area on the 3D body map to narrow down our AI's search space and increase diagnostic accuracy.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                document.getElementById('home-hero-scanner')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-6 py-3 rounded-full text-xs font-extrabold text-white bg-[#5AA7A7] hover:bg-[#4d9393] shadow-md flex items-center gap-1.5 mx-auto md:mx-0 transition-transform hover:scale-105"
+            >
+              Analyze {selectedBodyPart} <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="shrink-0 w-full md:w-1/2 flex items-center justify-center p-4">
+           <BodyMap 
+             selectedPart={selectedBodyPart} 
+             onSelectPart={(part) => setSelectedBodyPart(part)} 
+           />
+        </div>
       </div>
 
     </div>

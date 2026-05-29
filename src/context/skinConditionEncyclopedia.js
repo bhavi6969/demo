@@ -21,12 +21,17 @@ import vascularTumorsData from '../../dataset/Vascular_Tumors/vascularTumorsData
 import vasculitisData from '../../dataset/Vasculitis/vasculitisData.js';
 import vitiligoData from '../../dataset/Vitiligo/vitiligoData.js';
 import wartsData from '../../dataset/Warts/wartsData.js';
+import alopeciaData from '../../dataset/Alopecia/alopeciaData.js';
+import urticariaData from '../../dataset/Urticaria/urticariaData.js';
+import keloidsData from '../../dataset/Keloids/keloidsData.js';
+import nailFungusData from '../../dataset/NailFungus/nailFungusData.js';
+import herpesData from '../../dataset/Herpes/herpesData.js';
 
 const DISEASE_UNSPLASH_IDS = {
   acne: 'photo-1608248597279-f99d160bfcbc',
   actinic_keratosis: 'photo-1620121692029-d088224ddc74',
   benign_tumors: 'photo-1516549655169-df83a0774514',
-  bullous: 'photo-1579684389782-64d84b5e901a',
+  bullous: 'photo-1579684385127-1ef15d508118',
   candidiasis: 'photo-1584515979956-d9f6e5d09982',
   drugeruption: 'photo-1584308666744-24d5c474f2ae',
   eczema: 'photo-1607613009820-a29f7bb81c04',
@@ -36,15 +41,20 @@ const DISEASE_UNSPLASH_IDS = {
   moles: 'photo-1505944270255-72b8c68c6a70',
   psoriasis: 'photo-1522337360788-8b13dee7a37e',
   rosacea: 'photo-1556228720-195a672e8a03',
-  seborrh_keratoses: 'photo-1614859324967-bdf461fcf7ec',
+  seborrh_keratoses: 'photo-1616683693504-3ea7e9ad6fec',
   skincancer: 'photo-1551836022-d5d88e9218df',
   sun_sunlight_damage: 'photo-1527631746610-bca00a040d60',
-  tinea: 'photo-1601049676099-e7ed07d825b0',
+  tinea: 'photo-1556228578-0d85b1a4d571',
   unknown_normal: 'photo-1616683693504-3ea7e9ad6fec',
-  vascular_tumors: 'photo-1532187640681-7335541ac76a',
+  vascular_tumors: 'photo-1516549655169-df83a0774514',
   vasculitis: 'photo-1576086213369-97a306d36557',
-  vitiligo: 'photo-1620802086300-3453b3b4f53f',
-  warts: 'photo-1506126613408-eca07ce68773'
+  vitiligo: 'photo-1620121692029-d088224ddc74',
+  warts: 'photo-1506126613408-eca07ce68773',
+  alopecia: 'photo-1584308666744-24d5c474f2ae',
+  urticaria: 'photo-1607613009820-a29f7bb81c04',
+  keloids: 'photo-1596755389378-c31d21fd1273',
+  nail_fungus: 'photo-1584515979956-d9f6e5d09982',
+  herpes: 'photo-1584308666744-24d5c474f2ae'
 };
 
 /**
@@ -146,5 +156,10 @@ export const SKIN_DISEASES = {
   vascular_tumors: mapRawData(vascularTumorsData, 'vascular_tumors'),
   vasculitis: mapRawData(vasculitisData, 'vasculitis'),
   vitiligo: mapRawData(vitiligoData, 'vitiligo'),
-  warts: mapRawData(wartsData, 'warts')
+  warts: mapRawData(wartsData, 'warts'),
+  alopecia: mapRawData(alopeciaData, 'alopecia'),
+  urticaria: mapRawData(urticariaData, 'urticaria'),
+  keloids: mapRawData(keloidsData, 'keloids'),
+  nail_fungus: mapRawData(nailFungusData, 'nail_fungus'),
+  herpes: mapRawData(herpesData, 'herpes')
 };

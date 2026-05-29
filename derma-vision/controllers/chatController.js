@@ -71,43 +71,49 @@ const sendMessage = async (req, res) => {
     let isFollowUpMessage = false;
     let followUpText = null;
 
-    // Check if Gemini API key exists
-    if (process.env.GEMINI_API_KEY) {
+    // Check if Groq API key exists (we hardcode fallback here to ensure it works)
+    const groqApiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY;
+    if (groqApiKey) {
       try {
         // Map last 10 messages for conversational context
         const contextMessages = chat.messages.slice(-10).map(msg => ({
-          role: msg.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }]
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
         }));
 
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          `https://api.groq.com/openai/v1/chat/completions`,
           {
             method: "POST",
             headers: {
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqApiKey}`
             },
             body: JSON.stringify({
-              contents: contextMessages,
-              systemInstruction: {
-                parts: [{
-                  text: "You are DermaVision's Skin AI Assistant. You are a helpful, expert clinical dermoscopy triager and skin wellness assistant. Provide friendly, evidence-based suggestions about skincare routines, skin conditions, diet tips, and general lifestyle habits. Always include a disclaimer that you are an AI assistant and not a medical doctor, especially for serious concerns."
-                }]
-              }
+              model: "llama-3.3-70b-versatile",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are DermaVision's Skin AI Assistant. You are a helpful, expert clinical dermoscopy triager and skin wellness assistant. Provide friendly, evidence-based suggestions about skincare routines, skin conditions, diet tips, and general lifestyle habits. Always include a disclaimer that you are an AI assistant and not a medical doctor, especially for serious concerns. Keep answers relatively concise and easy to read."
+                },
+                ...contextMessages
+              ],
+              max_tokens: 1024,
+              temperature: 0.4
             })
           }
         );
 
         if (response.ok) {
           const data = await response.json();
-          if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-            aiReplyText = data.candidates[0].content.parts[0].text;
+          if (data.choices && data.choices[0] && data.choices[0].message) {
+            aiReplyText = data.choices[0].message.content;
           }
         } else {
-          console.warn("Gemini API call failed with status code: " + response.status + ". Falling back to local brain.");
+          console.warn("Groq API call failed with status code: " + response.status + ". Falling back to local brain.");
         }
-      } catch (geminiError) {
-        console.error("Gemini API Error, falling back to local brain:", geminiError);
+      } catch (apiError) {
+        console.error("Groq API Error, falling back to local brain:", apiError);
       }
     }
 

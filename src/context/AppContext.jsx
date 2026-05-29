@@ -60,6 +60,7 @@ export function AppProvider({ children }) {
   ]));
   const [chatHistory, setChatHistory] = useState([]);
   const [latestAnalysis, setLatestAnalysis] = useState(null);
+  const [triageAlert, setTriageAlert] = useState(null);
 
   // Persist to localStorage whenever notifications change
   useEffect(() => { save('dv_notifications', notifications); }, [notifications]);
@@ -553,10 +554,17 @@ export function AppProvider({ children }) {
             confidence: confidenceStr,
             severity: diseaseInfo.severity,
             imageUrl: apiResult?.uploadedImage || imageSrc || 'https://images.unsplash.com/photo-1628102428189-6c4cf008719c?w=400&auto=format&fit=crop&q=60',
+            heatmapImage: apiResult?.heatmapImage || null,
             status: 'Completed',
             source: apiResult ? apiResult.source : 'simulation_fallback',
             predictions: predictions
           };
+
+          // Triage Alert Logic
+          const confValue = parseFloat(confidenceStr);
+          if ((diseaseInfo.severity === 'Severe' || diseaseInfo.severity === 'High') && confValue >= 85) {
+            setTriageAlert({ disease: diseaseInfo.name, confidence: confidenceStr });
+          }
 
           // Save scan to history log
           setScans((prev) => [resultPayload, ...prev]);
@@ -587,6 +595,8 @@ export function AppProvider({ children }) {
         chatHistory,
         setChatHistory,
         latestAnalysis,
+        triageAlert,
+        setTriageAlert,
         sendChatMessage,
         clearChat,
         saveSkinAnalysis,

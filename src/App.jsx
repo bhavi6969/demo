@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import Footer from './components/Footer';
 import ChatbotWidget from './components/ChatbotWidget';
+import TriageBanner from './components/TriageBanner';
 import { useApp } from './context/AppContext';
 
 // Import Pages
@@ -54,6 +55,7 @@ function ProtectedRoute({ children }) {
 function DashboardLayout() {
   return (
     <div className="flex h-screen w-screen lg:p-5 lg:gap-5 overflow-hidden transition-colors duration-300">
+      <TriageBanner />
       {/* Sidebar on the left — desktop only */}
       <Sidebar />
       
