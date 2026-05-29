@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "commonjs",
   "scripts": {
+    "postinstall": "npm install --prefix derma-vision",
     "dev": "concurrently \"vite\" \"npm run dev --prefix derma-vision\"",
     "dev:backend": "npm run dev --prefix derma-vision",
     "dev:all": "npm run dev",
